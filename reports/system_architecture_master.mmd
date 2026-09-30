@@ -1,0 +1,48 @@
+flowchart TB
+
+    %% ================= OFFLINE TRAINING LANE =================
+    subgraph TRAIN["OFFLINE TRAINING LANE"]
+        direction LR
+        TDATA["1  TRAINING DATA<br/><br/>GAMUS paired remote-sensing data<br/>RGB image + AGL height map + land-cover map"]
+        TPREP["Preprocessing<br/>normalization + scene-level splits"]
+        MODEL["2  MODEL<br/><br/>Depth Anything V2<br/>fine-tuned on GAMUS RGB–AGL pairs"]
+        CKPT["Fine-tuned HeightNet model<br/>saved depth + semantic checkpoints"]
+
+        TDATA --> TPREP --> MODEL --> CKPT
+    end
+
+    %% ================= LIVE INFERENCE LANE =================
+    subgraph LIVE["LIVE INFERENCE LANE"]
+        direction LR
+        INPUT["Fresh Dehradun RGB GeoTIFF<br/>10 m georeferenced input"]
+        META["Metadata + CRS check<br/>read bands · preserve transform"]
+        REL["Relative depth map<br/>model-predicted structure"]
+        STACK["Image stack<br/>RGB · relative depth · calibrated AGL · coarse DEM"]
+        CAL["3  CALIBRATION & FUSION<br/><br/>SURE-Cal: semantic correction + uncertainty gate<br/>Co-register coarse DEM with RGB grid"]
+        AGL["Predicted AGL<br/>calibrated above-ground height"]
+        DSM["4  OUTCOME<br/><br/>DSM GeoTIFF<br/>DSM = coarse DEM + calibrated AGL"]
+        MESH["Textured 3D terrain<br/>OBJ + MTL + PNG texture"]
+        QGIS["QGIS 3D Terrain / Mesh<br/>inspect · navigate · record demo"]
+
+        INPUT --> META --> REL --> STACK --> CAL --> AGL --> DSM --> MESH --> QGIS
+    end
+
+    DEM["Coarse DEM<br/>SRTM / NASADEM"] --> CAL
+    CKPT -. "saved checkpoint used at runtime" .-> REL
+
+    SUPPORT["Core stack: Python · PyTorch · Rasterio · pyproj · QGIS · Three.js"]
+    SUPPORT -.-> TPREP
+    SUPPORT -.-> CAL
+    SUPPORT -.-> QGIS
+
+    classDef data fill:#e9f2ff,stroke:#4489d7,color:#102a43,stroke-width:1.5px;
+    classDef model fill:#f0e8ff,stroke:#8757d8,color:#25123f,stroke-width:1.5px;
+    classDef calibration fill:#fff1d6,stroke:#d88d16,color:#402b08,stroke-width:1.5px;
+    classDef output fill:#e3f8ed,stroke:#27a66f,color:#103b29,stroke-width:1.5px;
+    classDef support fill:#f2f4f7,stroke:#8895a7,color:#263238,stroke-width:1px;
+
+    class TDATA,TPREP,INPUT,META,REL,STACK,DEM data;
+    class MODEL,CKPT model;
+    class CAL,AGL calibration;
+    class DSM,MESH,QGIS output;
+    class SUPPORT support;

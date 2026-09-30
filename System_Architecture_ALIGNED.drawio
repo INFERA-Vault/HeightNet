@@ -1,0 +1,172 @@
+<mxfile host="Electron" agent="Mozilla/5.0">
+  <diagram id="heightnet-aligned-architecture" name="HeightNet System Architecture">
+    <mxGraphModel dx="1212" dy="736" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="800" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=24;fontStyle=1;fontColor=#172033;" value="DEPTHWIZARD  |  SYSTEM ARCHITECTURE" vertex="1">
+          <mxGeometry height="40" width="800" x="200" y="25" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=13;fontColor=#667085;" value="Input → AI inference → semantic calibration → geospatial fusion → products" vertex="1">
+          <mxGeometry height="28" width="700" x="250" y="67" as="geometry" />
+        </mxCell>
+        <mxCell id="input_zone" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;strokeWidth=1.5;align=left;verticalAlign=top;fontSize=12;fontStyle=1;fontColor=#475467;spacingTop=10;spacingLeft=14;" value="INPUT &amp; DATA" vertex="1">
+          <mxGeometry height="455" width="260" x="40" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="core_zone" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;strokeWidth=1.5;align=left;verticalAlign=top;fontSize=12;fontStyle=1;fontColor=#475467;spacingTop=10;spacingLeft=14;" value="PROCESSING &amp; AI CORE" vertex="1">
+          <mxGeometry height="455" width="550" x="325" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="output_zone" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;strokeWidth=1.5;align=left;verticalAlign=top;fontSize=12;fontStyle=1;fontColor=#475467;spacingTop=10;spacingLeft=14;" value="OUTPUT &amp; DELIVERY" vertex="1">
+          <mxGeometry height="455" width="260" x="900" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="rgb" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EFF6FF;strokeColor=#60A5FA;strokeWidth=1.5;align=center;verticalAlign=middle;fontSize=12;fontColor=#172033;" value="RGB IMAGE PNG / JPG Relative product" vertex="1">
+          <mxGeometry height="75" width="210" x="65" y="185" as="geometry" />
+        </mxCell>
+        <mxCell id="geo" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EFF6FF;strokeColor=#60A5FA;strokeWidth=1.5;align=center;verticalAlign=middle;fontSize=12;fontColor=#172033;" value="GEOTIFF CRS + Transform Metric workflow" vertex="1">
+          <mxGeometry height="75" width="210" x="65" y="285" as="geometry" />
+        </mxCell>
+        <mxCell id="dem" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EFF6FF;strokeColor=#60A5FA;strokeWidth=1.5;align=center;verticalAlign=middle;fontSize=12;fontColor=#172033;" value="COARSE GROUND ELEVATION SRTM / NASADEM" vertex="1">
+          <mxGeometry height="75" width="210" x="65" y="385" as="geometry" />
+        </mxCell>
+        <mxCell id="gcps" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EFF6FF;strokeColor=#60A5FA;strokeWidth=1.5;align=center;verticalAlign=middle;fontSize=12;fontColor=#172033;" value="OPTIONAL GCPs Ground control" vertex="1">
+          <mxGeometry height="55" width="210" x="65" y="485" as="geometry" />
+        </mxCell>
+        <mxCell id="pre" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EAF3FF;strokeColor=#3B82F6;strokeWidth=1.8;align=center;verticalAlign=middle;fontSize=12;fontColor=#172033;" value="01  PREPROCESSING &amp; VALIDATION Read bands • normalize RGB • preserve transform • alignment checks" vertex="1">
+          <mxGeometry height="68" width="500" x="350" y="180" as="geometry" />
+        </mxCell>
+        <mxCell id="depth" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3EEFF;strokeColor=#8B5CF6;strokeWidth=1.8;align=center;verticalAlign=middle;fontSize=12;fontColor=#172033;" value="02  GAMUS-ADAPTED DEPTH BACKBONE Depth Anything V2 + RGB–AGL fine-tuning → relative structural height" vertex="1">
+          <mxGeometry height="105" width="300" x="350" y="280" as="geometry" />
+        </mxCell>
+        <mxCell id="semantic" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF4E5;strokeColor=#F59E0B;strokeWidth=1.8;align=center;verticalAlign=middle;fontSize=12;fontColor=#172033;" value="03  SCENE UNDERSTANDING Frozen depth features + semantic head → land-cover probabilities + uncertainty" vertex="1">
+          <mxGeometry height="105" width="170" x="680" y="280" as="geometry" />
+        </mxCell>
+        <mxCell id="sure" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ECFDF3;strokeColor=#22C55E;strokeWidth=1.8;align=center;verticalAlign=middle;fontSize=12;fontColor=#172033;" value="04  SURE-CAL REFINEMENT Global affine + shrunk class-wise calibration + uncertainty gate" vertex="1">
+          <mxGeometry height="82" width="500" x="350" y="415" as="geometry" />
+        </mxCell>
+        <mxCell id="fusion" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EAFBFA;strokeColor=#14B8A6;strokeWidth=1.8;align=center;verticalAlign=middle;fontSize=12;fontColor=#172033;" value="05  GEOSPATIAL FUSION Co-register coarse ground elevation DSM = ground + calibrated AGL" vertex="1">
+          <mxGeometry height="60" width="500" x="350" y="520" as="geometry" />
+        </mxCell>
+        <mxCell id="geotiff" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FDF4;strokeColor=#34D399;strokeWidth=1.5;align=center;verticalAlign=middle;fontSize=12;fontColor=#172033;" value="GEOTIFF PRODUCTS Relative DSM • AGL • Experimental DSM" vertex="1">
+          <mxGeometry height="85" width="210" x="925" y="185" as="geometry" />
+        </mxCell>
+        <mxCell id="mesh" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FDF4;strokeColor=#34D399;strokeWidth=1.5;align=center;verticalAlign=middle;fontSize=12;fontColor=#172033;" value="TEXTURED 3D MESH OBJ + MTL + PNG texture" vertex="1">
+          <mxGeometry height="70" width="210" x="925" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="qaoBZqRrlzL_X_KBFrsL-4" edge="1" parent="1" source="viewer" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="meta" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="viewer" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FDF4;strokeColor=#34D399;strokeWidth=1.5;align=center;verticalAlign=middle;fontSize=12;fontColor=#172033;" value="BROWSER FLYTHROUGH Three.js • OBJ/MTL • OrbitControls" vertex="1">
+          <mxGeometry height="85" width="210" x="925" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="meta" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FDF4;strokeColor=#34D399;strokeWidth=1.5;align=center;verticalAlign=middle;fontSize=12;fontColor=#172033;" value="METADATA JSON + provenance" vertex="1">
+          <mxGeometry height="55" width="210" x="925" y="510" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" edge="1" parent="1" source="rgb" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475467;strokeWidth=2;endArrow=block;endFill=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;" target="pre" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="312.47" y="222.47" />
+              <mxPoint x="312.47" y="214" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e2" edge="1" parent="1" source="geo" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475467;strokeWidth=2;endArrow=block;endFill=1;" target="pre" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="330" y="322.47" />
+              <mxPoint x="330" y="214" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e3" edge="1" parent="1" source="pre" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475467;strokeWidth=2;endArrow=block;endFill=1;" target="depth" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" edge="1" parent="1" source="depth" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475467;strokeWidth=2;endArrow=block;endFill=1;" target="semantic" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" edge="1" parent="1" source="semantic" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475467;strokeWidth=2;endArrow=block;endFill=1;" target="sure" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="765.06" y="395.06" />
+              <mxPoint x="600" y="395.06" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e6" edge="1" parent="1" source="sure" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475467;strokeWidth=2;endArrow=block;endFill=1;" target="fusion" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" edge="1" parent="1" source="fusion" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475467;strokeWidth=2;endArrow=block;endFill=1;" target="geotiff" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="600" y="600" />
+              <mxPoint x="900" y="600" />
+              <mxPoint x="900" y="227.53" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e8" edge="1" parent="1" source="geotiff" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475467;strokeWidth=2;endArrow=block;endFill=1;" target="mesh" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" edge="1" parent="1" source="mesh" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475467;strokeWidth=2;endArrow=block;endFill=1;" target="viewer" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" edge="1" parent="1" source="dem" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475467;strokeWidth=2;endArrow=block;endFill=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="sure" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e12" edge="1" parent="1" source="gcps" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475467;strokeWidth=2;endArrow=block;endFill=1;" target="sure" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="svc_zone" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;strokeWidth=1.5;align=left;verticalAlign=top;fontSize=12;fontStyle=1;fontColor=#475467;spacingTop=10;spacingLeft=14;" value="CROSS-CUTTING SERVICES" vertex="1">
+          <mxGeometry height="125" width="1120" x="40" y="610" as="geometry" />
+        </mxCell>
+        <mxCell id="train" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.2;align=center;verticalAlign=middle;fontSize=11;fontColor=#172033;" value="DATASET / TRAINING NumPy • h5py • GAMUS splits" vertex="1">
+          <mxGeometry height="50" width="245" x="65" y="665" as="geometry" />
+        </mxCell>
+        <mxCell id="geo_svc" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.2;align=center;verticalAlign=middle;fontSize=11;fontColor=#172033;" value="GEOSPATIAL TOOLING Rasterio • pyproj • STAC" vertex="1">
+          <mxGeometry height="50" width="245" x="330" y="665" as="geometry" />
+        </mxCell>
+        <mxCell id="eval" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.2;align=center;verticalAlign=middle;fontSize=11;fontColor=#172033;" value="EVALUATION MAE • RMSE • correlation • bias" vertex="1">
+          <mxGeometry height="50" width="245" x="595" y="665" as="geometry" />
+        </mxCell>
+        <mxCell id="delivery" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.2;align=center;verticalAlign=middle;fontSize=11;fontColor=#172033;" value="DELIVERY Python CLI • Web/API planned" vertex="1">
+          <mxGeometry height="50" width="245" x="860" y="665" as="geometry" />
+        </mxCell>
+        <mxCell id="s1" edge="1" parent="1" source="train" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#98A2B3;strokeWidth=1.3;dashed=1;endArrow=open;endFill=0;" target="depth" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="187.53" y="650" />
+              <mxPoint x="330" y="650" />
+              <mxPoint x="330" y="332.47" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s2" edge="1" parent="1" source="geo_svc" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#98A2B3;strokeWidth=1.3;dashed=1;endArrow=open;endFill=0;" target="fusion" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="452.47" y="622.47" />
+              <mxPoint x="340" y="622.47" />
+              <mxPoint x="340" y="550" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s3" edge="1" parent="1" source="eval" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#98A2B3;strokeWidth=1.3;dashed=1;endArrow=open;endFill=0;" target="sure" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="717.53" y="630" />
+              <mxPoint x="870" y="630" />
+              <mxPoint x="870" y="456" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s4" edge="1" parent="1" source="delivery" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#98A2B3;strokeWidth=1.3;dashed=1;endArrow=open;endFill=0;" target="viewer" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="982.47" y="630" />
+              <mxPoint x="910" y="630" />
+              <mxPoint x="910" y="442.47" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -1,0 +1,256 @@
+/* Right Inspector Panel - Professional CAD & GIS Property Rollouts */
+.inspector-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: var(--bg-panel);
+  border-left: 1px solid var(--border-subtle);
+  user-select: none;
+  overflow: hidden;
+}
+
+.inspector-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 10px;
+  background-color: var(--bg-panel-header);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-primary);
+}
+
+.inspector-header-badge {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  padding: 1px 4px;
+  border-radius: var(--radius-xs);
+  color: var(--accent-light);
+  font-weight: 500;
+}
+
+.inspector-content {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* CAD Collapsible Property Rollout (No rounded cards!) */
+.rollout-section {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.rollout-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 24px;
+  min-height: 24px;
+  padding: 0 8px;
+  background-color: var(--bg-subtle);
+  cursor: pointer;
+  border-top: 1px solid rgba(255, 255, 255, 0.03);
+  transition: background-color 80ms;
+}
+
+.rollout-header:hover {
+  background-color: var(--bg-hover);
+}
+
+.rollout-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.rollout-header:hover .rollout-title {
+  color: var(--text-primary);
+}
+
+.rollout-body {
+  padding: 6px 10px 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  background-color: var(--bg-panel);
+}
+
+/* Standardized 2-Column Property Row */
+.prop-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 22px;
+  gap: 8px;
+}
+
+.prop-label {
+  width: 90px;
+  flex-shrink: 0;
+  font-size: 10.5px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.prop-field {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.prop-slider {
+  flex: 1;
+  max-width: 130px;
+}
+
+.prop-num-box {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--text-primary);
+  width: 38px;
+  text-align: right;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  padding: 1px 3px;
+  height: 18px;
+  line-height: 16px;
+}
+
+/* Compact Segmented Switcher */
+.desktop-segmented {
+  display: flex;
+  align-items: center;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 1px;
+  gap: 1px;
+  width: 100%;
+}
+
+.desktop-segmented-btn {
+  flex: 1;
+  height: 20px;
+  font-size: 10px;
+  font-weight: 500;
+  border-radius: var(--radius-xs);
+  color: var(--text-secondary);
+}
+
+.desktop-segmented-btn:hover {
+  color: var(--text-primary);
+}
+
+.desktop-segmented-btn.active {
+  background-color: var(--bg-active);
+  color: #ffffff;
+  border: 1px solid var(--border-medium);
+}
+
+/* Action Button Rows */
+.prop-action-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+  width: 100%;
+  margin-top: 2px;
+}
+
+.prop-action-row-4 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 3px;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.desktop-action-btn {
+  height: 22px;
+  padding: 0 6px;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.desktop-action-btn:hover {
+  background-color: var(--bg-hover);
+  border-color: var(--border-medium);
+  color: var(--text-primary);
+}
+
+.desktop-action-btn.active {
+  background-color: var(--accent-muted);
+  color: var(--accent-light);
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
+.desktop-action-btn.warning {
+  background-color: rgba(245, 158, 11, 0.12);
+  color: var(--status-warning);
+  border-color: rgba(245, 158, 11, 0.35);
+}
+.desktop-action-btn.warning:hover {
+  background-color: rgba(245, 158, 11, 0.22);
+}
+
+.desktop-action-btn.active {
+  background-color: var(--accent-muted);
+  border-color: rgba(56, 189, 248, 0.4);
+  color: var(--accent-light);
+}
+
+/* Technical GIS Metadata Table */
+.gis-meta-table {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 10px;
+}
+
+.gis-meta-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 2px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.gis-meta-row:last-child {
+  border-bottom: none;
+}
+
+.gis-meta-label {
+  color: var(--text-muted);
+}
+
+.gis-meta-val {
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  text-align: right;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -1,0 +1,80 @@
+flowchart LR
+
+    %% -------------------- OFFLINE TRAINING --------------------
+    subgraph TRAIN["OFFLINE TRAINING & CALIBRATION"]
+        DATA["GAMUS paired scenes<br/>RGB + AGL height + land cover"]
+        PREP["Preprocess<br/>scene-level train / validation / test split"]
+        DEPTH_TRAIN["Fine-tune Depth Anything V2<br/>RGB → relative structural depth"]
+        SEM_TRAIN["Train semantic head<br/>frozen depth features → land-cover probabilities"]
+        CAL_TRAIN["Fit SURE-Cal on training scenes<br/>global + shrunk class-wise calibration"]
+        DEPTH_CKPT["Depth checkpoint"]
+        SEM_CKPT["Semantic checkpoint"]
+        CAL_REPORT["Calibration report"]
+
+        DATA --> PREP
+        PREP --> DEPTH_TRAIN
+        PREP --> SEM_TRAIN
+        PREP --> CAL_TRAIN
+        DEPTH_TRAIN --> DEPTH_CKPT
+        SEM_TRAIN --> SEM_CKPT
+        CAL_TRAIN --> CAL_REPORT
+    end
+
+    %% -------------------- RUNTIME PIPELINE --------------------
+    subgraph RUNTIME["RUNTIME INFERENCE"]
+        RGB_INPUT["Fresh RGB image<br/>PNG / JPG / GeoTIFF"]
+        VALIDATE["Preprocess & validate<br/>normalize bands · read CRS · preserve transform"]
+        REL_DEPTH["Depth inference<br/>fine-tuned model → relative depth"]
+        SEMANTIC["Scene understanding<br/>semantic probabilities + uncertainty"]
+        SURECAL["SURE-Cal refinement<br/>global fit + semantic correction + uncertainty gate"]
+        DEM["Coarse ground elevation<br/>SRTM / NASADEM"]
+        FUSION["Geospatial fusion<br/>co-register DEM + calibrated AGL"]
+
+        RGB_INPUT --> VALIDATE --> REL_DEPTH
+        REL_DEPTH --> SEMANTIC
+        REL_DEPTH --> RELATIVE_OUT
+        SEMANTIC --> SURECAL
+        DEM --> FUSION
+        SURECAL --> FUSION
+    end
+
+    %% -------------------- PRODUCTS --------------------
+    subgraph PRODUCTS["OUTPUT & DELIVERY"]
+        RELATIVE_OUT["Relative DSM<br/>PNG/JPG workflow"]
+        METRIC_OUT["AGL + experimental DSM<br/>GeoTIFF + metadata JSON"]
+        MESH["Textured terrain mesh<br/>OBJ + MTL + PNG texture"]
+        QGIS["QGIS 2D / 3D Map View<br/>inspect · validate · navigate"]
+        WEB["Three.js browser viewer<br/>orbit · zoom · terrain inspection"]
+
+        FUSION --> METRIC_OUT
+        METRIC_OUT --> MESH
+        MESH --> QGIS
+        MESH --> WEB
+        RELATIVE_OUT --> QGIS
+    end
+
+    %% -------------------- CROSS-CUTTING --------------------
+    subgraph SUPPORT["CROSS-CUTTING SERVICES"]
+        GEO["Rasterio + pyproj<br/>STAC / Planetary Computer"]
+        EVAL["Evaluation reports<br/>MAE · RMSE · correlation · bias"]
+        REF["Optional reference DSM / GCPs<br/>independent validation"]
+    end
+
+    DEPTH_CKPT --> REL_DEPTH
+    SEM_CKPT --> SEMANTIC
+    CAL_REPORT --> SURECAL
+    GEO -.-> VALIDATE
+    GEO -.-> FUSION
+    REF -.-> EVAL
+    METRIC_OUT -.-> EVAL
+
+    classDef input fill:#e8f1ff,stroke:#4387d8,color:#102a43,stroke-width:1.5px;
+    classDef train fill:#f0eaff,stroke:#8656d6,color:#25123f,stroke-width:1.5px;
+    classDef process fill:#fff4dc,stroke:#d99119,color:#402b08,stroke-width:1.5px;
+    classDef output fill:#e5f8ee,stroke:#27a66f,color:#103b29,stroke-width:1.5px;
+    classDef support fill:#f2f4f7,stroke:#8895a7,color:#263238,stroke-width:1px;
+
+    class DATA,PREP,DEPTH_TRAIN,SEM_TRAIN,CAL_TRAIN,DEPTH_CKPT,SEM_CKPT,CAL_REPORT train;
+    class RGB_INPUT,VALIDATE,REL_DEPTH,SEMANTIC,SURECAL,DEM,FUSION process;
+    class RELATIVE_OUT,METRIC_OUT,MESH,QGIS,WEB output;
+    class GEO,EVAL,REF support;

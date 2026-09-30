@@ -1,0 +1,89 @@
+/* Depth Wizard - Professional GIS & 3D Workspace Design System */
+@import './styles/globals.css';
+@import './styles/shell.css';
+@import './styles/sidebar.css';
+@import './styles/viewport.css';
+@import './styles/inspector.css';
+@import './styles/menus.css';
+@import './styles/modals.css';
+@import './styles/viewer.css';
+
+.live-pipeline-panel {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 500;
+  width: min(390px, calc(100vw - 36px));
+  padding: 14px;
+  border: 1px solid rgba(110, 231, 183, 0.35);
+  border-radius: 10px;
+  background: rgba(18, 26, 34, 0.96);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.45);
+  color: var(--text-primary);
+  font-size: 11px;
+}
+
+.live-pipeline-heading,
+.live-pipeline-actions,
+.live-pipeline-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.live-pipeline-heading {
+  justify-content: space-between;
+}
+
+.live-pipeline-kicker {
+  color: #6ee7b7;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+
+.live-pipeline-copy {
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin: 8px 0 11px;
+}
+
+.live-pipeline-actions { margin-bottom: 9px; }
+
+.live-pipeline-button {
+  flex: 1;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.live-pipeline-button:hover:not(:disabled) { border-color: #6ee7b7; color: #fff; }
+.live-pipeline-button:disabled { cursor: not-allowed; opacity: 0.45; }
+.live-pipeline-primary { background: rgba(16, 185, 129, 0.16); border-color: rgba(110, 231, 183, 0.45); }
+
+.live-pipeline-status { color: var(--text-muted); line-height: 1.35; }
+.live-pipeline-meta { color: var(--text-muted); margin-top: 7px; font-family: var(--font-mono); font-size: 9px; }
+.live-pipeline-outputs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 11px; padding-top: 10px; border-top: 1px solid var(--border-subtle); }
+.live-pipeline-outputs strong { grid-column: 1 / -1; color: var(--text-secondary); }
+.live-pipeline-outputs a { color: #7dd3fc; text-decoration: none; }
+.live-pipeline-outputs a:hover { text-decoration: underline; }
+.live-pipeline-stats { grid-column: 1 / -1; color: var(--text-muted); font-size: 9px; }
+.live-pipeline-viewer { grid-column: 1 / -1; display: inline-flex; align-items: center; gap: 5px; color: #6ee7b7 !important; }
+.live-pipeline-validation { grid-column: 1 / -1; margin-top: 11px; padding-top: 10px; border-top: 1px solid var(--border-subtle); display: grid; gap: 7px; }
+.live-pipeline-help { color: var(--text-muted); line-height: 1.35; }
+.live-pipeline-file { color: #bae6fd; font-family: var(--font-mono); font-size: 9px; overflow-wrap: anywhere; }
+.live-pipeline-validation > .live-pipeline-button { width: 100%; }
+.live-pipeline-metrics { display: grid; gap: 7px; margin-top: 2px; }
+.live-pipeline-metrics > a { color: #7dd3fc; text-decoration: none; }
+.live-pipeline-metric-block { display: grid; gap: 2px; padding: 7px; border-radius: 6px; background: rgba(15, 23, 42, 0.6); color: var(--text-muted); font-size: 9px; line-height: 1.35; }
+.live-pipeline-metric-block span:first-child { color: var(--text-secondary); font-weight: 700; }
+.live-pipeline-spin { animation: live-pipeline-spin 1s linear infinite; color: #6ee7b7; }
+@keyframes live-pipeline-spin { to { transform: rotate(360deg); } }

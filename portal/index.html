@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HeightNet | Satellite to Terrain</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <link rel="stylesheet" href="ui/styles.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">HEIGHTNET</p>
+      <h1>Satellite image to 3D terrain</h1>
+      <p class="subhead">Pick a place, choose an image, and send it through the existing pipeline.</p>
+    </div>
+    <div class="topbar-actions">
+      <a class="globe-link" href="/globe/">Open 3D globe</a>
+      <a class="globe-link" href="/workspace/">Open workspace UI</a>
+      <div class="status-pill" id="health">Checking local server...</div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="map-card">
+      <div id="map" aria-label="Interactive world map"></div>
+      <div class="map-help">Search a place, then click two corners on the map to select an area.</div>
+    </section>
+
+    <aside class="control-panel">
+      <section class="panel-section">
+        <h2>1. Find a place</h2>
+        <div class="inline-form">
+          <input id="place-query" type="search" placeholder="Try Dehradun or any place" />
+          <button id="search-place">Search</button>
+        </div>
+        <div id="place-results" class="result-list"></div>
+      </section>
+
+      <section class="panel-section">
+        <h2>2. Select an area</h2>
+        <button class="secondary full" id="select-area">Start area selection</button>
+        <div class="selection-box" id="selection">No area selected yet.</div>
+      </section>
+
+      <section class="panel-section">
+        <h2>3. Find satellite scenes</h2>
+        <label for="cloud-cover">Maximum cloud cover (%)</label>
+        <input id="cloud-cover" type="number" min="0" max="100" value="30" />
+        <button class="full" id="find-scenes">Find Sentinel-2 scenes</button>
+        <div id="scene-results" class="result-list"></div>
+      </section>
+
+      <section class="panel-section">
+        <h2>4. Use an image</h2>
+        <label class="upload-label full">
+          Upload PNG, JPG, or GeoTIFF
+          <input id="upload-input" type="file" accept=".png,.jpg,.jpeg,.tif,.tiff" />
+        </label>
+        <div id="input-status" class="selection-box">No local image selected.</div>
+        <button class="full" id="download-scene" disabled>Download selected scene</button>
+        <button class="secondary full" id="run-pipeline" disabled>Generate height and terrain</button>
+      </section>
+
+      <section class="panel-section">
+        <h2>5. Progress</h2>
+        <div id="job-status" class="job-status">Nothing is running.</div>
+        <div id="outputs" class="output-list"></div>
+      </section>
+
+      <section class="panel-section">
+        <h2>6. Evaluation reports</h2>
+        <p class="small-note">These are existing benchmark reports. A new location needs independent LiDAR or GCP data before it can be called validated.</p>
+        <button class="secondary full" id="load-evaluation">Show evaluation reports</button>
+        <div id="evaluation-results" class="evaluation-table"></div>
+      </section>
+    </aside>
+  </main>
+
+  <footer>
+    This is a local prototype. Sentinel-2 is about 10 m for the RGB bands, and a new location still needs independent LiDAR or GCP validation before making accuracy claims.
+  </footer>
+
+  <script src="map/map.js"></script>
+  <script src="ui/app.js"></script>
+</body>
+</html>
