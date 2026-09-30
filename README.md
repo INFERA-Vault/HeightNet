@@ -29,6 +29,19 @@ Run this from the repository root:
 python -m pip install -e ".[model,remote,test]"
 ```
 
+## Run with Docker
+
+Docker runs the portal, globe, workspace, API, and 3D viewer together. Large
+datasets and checkpoints stay in the local `data/` folder instead of being
+copied into the image:
+
+```powershell
+docker compose up --build
+```
+
+Then open <http://localhost:8000/>. See `DOCKER.md` for data mounts, model
+checkpoints, Sentinel-2 downloads, and container commands.
+
 ## Start the map portal
 
 The repository now includes a local portal that provides a world map, place

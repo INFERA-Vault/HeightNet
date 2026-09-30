@@ -21,6 +21,8 @@ This is the honest status of the project right now.
   model as a background job, and open the generated terrain.
 - The imported React workspace can upload an image, start the same job, show
   the real output links, and open the same viewer.
+- Docker Compose can build and run the portal, globe, workspace, API, and
+  viewer together while mounting large local data separately.
 - The workspace can show real DSM/AGL statistics after a run.
 - A click on the live 2D raster can read the generated DSM height and local
   slope from the output raster.
