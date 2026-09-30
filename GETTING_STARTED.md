@@ -8,7 +8,7 @@ it without guessing what to do.
 Open PowerShell and run:
 
 ```powershell
-git clone https://github.com/INFERA-SIH26175/HeightNet.git HeightNet
+git clone https://github.com/INFERA-Vault/HeightNet.git HeightNet
 cd HeightNet
 ```
 
