@@ -31,14 +31,14 @@ cd ../..
 python scripts/serve_portal.py
 ```
 
-Then open:
+Then open the main app:
 
 ```text
-http://127.0.0.1:8000/workspace/
+http://127.0.0.1:8000/
 ```
 
 Choose a PNG, JPG, or GeoTIFF and click **Run model**. The same API is also
-used by the simple portal and the Cesium globe at `/globe/`.
+used by the classic portal at `/classic/` and the Cesium globe at `/globe/`.
 
 ## Important boundary
 

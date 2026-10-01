@@ -204,10 +204,9 @@ Vertical scale: 2.0
 Keep the RGB layer visible. It supplies the texture. The confidence layer is
 only for checking where the calibration is more or less reliable.
 
-## 13. Run the connected browser workspace
+## 13. Run the React workspace
 
-The simple portal already works with Python only. The imported React workspace
-needs Node once to build its browser files:
+The React workspace needs Node once to build its browser files:
 
 ```powershell
 cd portal/workspace-src
@@ -217,8 +216,10 @@ cd ../..
 python scripts/serve_portal.py
 ```
 
-Open `http://127.0.0.1:8000/workspace/`. Choose an input file and click
+Open `http://127.0.0.1:8000/`. Choose an input file and click
 **Run model**. It uses the same backend and opens the same real terrain viewer.
+
+The old simple portal remains available at `http://127.0.0.1:8000/classic/`.
 
 When the run finishes, you can click the 2D result to inspect the generated
 DSM height and local slope. To check accuracy, add a reference DSM GeoTIFF or a

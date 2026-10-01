@@ -1,5 +1,5 @@
 /**
- * Procedural Terrain & Elevation Generator for Depth Wizard
+ * Procedural preview terrain generator for HeightNet
  * Generates coherent alpine/mountainous terrain, depth maps, and satellite rasters
  */
 

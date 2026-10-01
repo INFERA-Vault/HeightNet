@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ExternalLink, FileUp, LoaderCircle, Play, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { useAppStore } from '../../state/appStore';
 import { useProjectStore } from '../../state/projectStore';
@@ -35,6 +35,12 @@ export const LivePipelinePanel: React.FC = () => {
   const notify = useAppStore((state) => state.notify);
   const setInput = useProjectStore((state) => state.setInputInfo);
   const setLiveResult = useProjectStore((state) => state.setLiveResult);
+
+  useEffect(() => {
+    const openUpload = () => inputRef.current?.click();
+    window.addEventListener('heightnet:open-upload', openUpload);
+    return () => window.removeEventListener('heightnet:open-upload', openUpload);
+  }, []);
 
   const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -157,9 +163,9 @@ export const LivePipelinePanel: React.FC = () => {
       {result ? (
         <div className="live-pipeline-outputs">
           <strong>Outputs</strong>
-          {(['relative', 'agl', 'dsm', 'confidence'] as const).map((key) => result[key] ? (
+          {(['relative', 'agl', 'dsm', 'confidence', 'scene_risk', 'scene_quality'] as const).map((key) => result[key] ? (
             <a key={key} href={artifactUrl(result[key]) ?? '#'} target="_blank" rel="noreferrer">
-              {key === 'relative' ? 'Relative depth' : key.toUpperCase()}
+              {key === 'relative' ? 'Relative depth' : key === 'scene_risk' ? 'Scene risk' : key === 'scene_quality' ? 'Quality report' : key.toUpperCase()}
             </a>
           ) : null)}
           {viewer ? <a className="live-pipeline-viewer" href={viewer} target="_blank" rel="noreferrer"><ExternalLink size={13} /> Open actual 3D terrain</a> : null}

@@ -192,7 +192,7 @@ python -m http.server 8000
 Open <http://localhost:8000/viewer/>. Choose the matching OBJ, MTL, texture,
 and metadata files together.
 
-## Run the local map-to-terrain portal
+## Run the HeightNet workspace
 
 This is the first connected web flow. It uses the map to choose an area, finds
 Sentinel-2 scenes, downloads the selected RGB GeoTIFF, and starts the existing
@@ -202,7 +202,8 @@ HeightNet pipeline as a background job.
 python scripts/serve_portal.py
 ```
 
-Open <http://127.0.0.1:8000/>. The flow is:
+Open <http://127.0.0.1:8000/>. The React workspace is now the main product
+screen. The flow is:
 
 ```text
 search place → select two map corners → find Sentinel-2 scenes
@@ -213,19 +214,20 @@ When a mesh is generated, the result panel includes a link that opens the OBJ,
 MTL, texture, and mesh metadata together in the Three.js viewer. The API only
 serves files created inside the local job folder.
 
-The Cesium world-map screen is available at
+The previous simple portal is still available at
+<http://127.0.0.1:8000/classic/> as a fallback. The Cesium world-map screen is available at
 <http://127.0.0.1:8000/globe/>. It uses the same API, so it can search places,
 select an area, fetch Sentinel-2 RGB imagery, start the model job, and open the
 same terrain viewer.
 
-## Open the imported workspace UI
+## React workspace source
 
 The UI branch is now kept under `portal/workspace-src/`. It is a React/Vite
 workspace with the layer panel, 2D/3D controls, live pipeline panel, and a
 link to the real generated terrain viewer. Its old procedural mountain is only
 a fallback preview; it is not presented as model output.
 
-Build it once:
+The UI branch is kept under `portal/workspace-src/`. Build it once:
 
 ```powershell
 cd portal/workspace-src
@@ -235,9 +237,10 @@ cd ../..
 python scripts/serve_portal.py
 ```
 
-Open <http://127.0.0.1:8000/workspace/>. Upload a PNG/JPG/GeoTIFF there,
-run the model, and use `Open actual 3D terrain` after the job finishes. The
-workspace and the simple portal use the same backend routes and job store.
+The root URL and `/workspace/` both serve the React workspace. Upload a
+PNG/JPG/GeoTIFF, run the model, and use `Open actual 3D terrain` after the job
+finishes. The workspace, classic portal, globe, and viewer all use the same
+backend routes and job store.
 
 ## Compare against reference data
 

@@ -93,6 +93,45 @@
   height: 100%;
 }
 
+.upload-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 2px 8px;
+  border: 1px solid rgba(110, 231, 183, 0.4);
+  border-radius: var(--radius-xs);
+  background: rgba(16, 185, 129, 0.14);
+  color: #a7f3d0;
+  font-size: 10px;
+}
+
+.upload-trigger:hover {
+  border-color: #6ee7b7;
+  background: rgba(16, 185, 129, 0.24);
+  color: #fff;
+}
+
+.map-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 2px 8px;
+  border: 1px solid rgba(96, 165, 250, 0.4);
+  border-radius: var(--radius-xs);
+  background: rgba(59, 130, 246, 0.14);
+  color: #bfdbfe;
+  font-size: 10px;
+  text-decoration: none;
+}
+
+.map-trigger:hover {
+  border-color: #93c5fd;
+  background: rgba(59, 130, 246, 0.24);
+  color: #fff;
+}
+
 .cmd-k-trigger {
   padding: 2px 7px;
   background-color: var(--bg-subtle);

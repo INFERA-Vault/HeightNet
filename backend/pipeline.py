@@ -18,6 +18,7 @@ from backend.geo.raster import (
 )
 from backend.inference.depth_anything import DepthAnythingV2Estimator
 from backend.evaluation.sure_cal import SureCalibration
+from backend.evaluation.scene_quality import assess_scene
 
 
 class PipelineInputError(ValueError):
@@ -55,6 +56,8 @@ class PipelineResult:
     warnings: tuple[str, ...]
     calibration_uncertainty_path: Path | None = None
     calibration_confidence_path: Path | None = None
+    scene_risk_path: Path | None = None
+    scene_quality_path: Path | None = None
 
 
 def describe_input(path: str | Path) -> InputDescription:
@@ -170,6 +173,28 @@ def run_pipeline(
     else:
         prediction = estimator.predict(rgb).relative_depth
     warnings: list[str] = []
+    scene_quality = assess_scene(rgb, semantic)
+    scene_risk_path: Path
+    scene_quality_path = output_root / f"{prefix}_scene_quality.json"
+    scene_quality_path.write_text(
+        json.dumps(scene_quality.to_dict(), indent=2) + "\n",
+        encoding="utf-8",
+    )
+    if description.kind is InputKind.GEOREFERENCED:
+        scene_risk_path = write_single_band_geotiff(
+            source,
+            output_root / f"{prefix}_scene_risk.tif",
+            scene_quality.risk_map,
+            description="HeightNet scene ambiguity risk (0 to 1)",
+        )
+    else:
+        scene_risk_path = write_float_geotiff(
+            output_root / f"{prefix}_scene_risk.tif",
+            scene_quality.risk_map,
+            description="HeightNet scene ambiguity risk (0 to 1)",
+        )
+    for flag in scene_quality.flags:
+        warnings.append(f"Scene quality flag: {flag}.")
 
     if description.kind is InputKind.GEOREFERENCED:
         relative_path = write_single_band_geotiff(
@@ -207,6 +232,7 @@ def run_pipeline(
             else:
                 assert semantic is not None
                 uncertainty = sure_calibration.calibration_uncertainty(semantic)
+                uncertainty = uncertainty + 5.0 * scene_quality.risk_map
                 calibrated = sure_calibration.apply(
                     prediction,
                     semantic,
@@ -278,7 +304,10 @@ def run_pipeline(
                 if calibration_confidence_path
                 else None
             ),
+            "scene_risk": str(scene_risk_path),
+            "scene_quality": str(scene_quality_path),
         },
+        "scene_quality": scene_quality.to_dict(),
         "warnings": warnings,
     }
     metadata_path.write_text(json.dumps(metadata, indent=2, default=str) + "\n", encoding="utf-8")
@@ -292,4 +321,6 @@ def run_pipeline(
         warnings=tuple(warnings),
         calibration_uncertainty_path=calibration_uncertainty_path,
         calibration_confidence_path=calibration_confidence_path,
+        scene_risk_path=scene_risk_path,
+        scene_quality_path=scene_quality_path,
     )

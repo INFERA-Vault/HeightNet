@@ -107,7 +107,7 @@ export const Dedicated3DViewer: React.FC = () => {
         <div className="viewer-top-left">
           <div className="viewer-brand">
             <Mountain size={15} color="var(--accent-light)" />
-            <span className="brand-name">Depth Wizard</span>
+            <span className="brand-name">HeightNet</span>
             <span className="viewer-badge">3D VIEWER</span>
           </div>
 

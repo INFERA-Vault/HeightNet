@@ -14,7 +14,8 @@ Run it from the repository root:
 python scripts/serve_portal.py
 ```
 
-Open `http://127.0.0.1:8000/` in a browser. Keep the terminal open while using
+Open `http://127.0.0.1:8000/` in a browser. This opens the React workspace,
+which is now the main HeightNet interface. Keep the terminal open while using
 the portal.
 
 The portal needs internet access for OpenStreetMap tiles, place search, and the
@@ -32,11 +33,15 @@ main two-step flow, while `/api/imagery` is a compatibility route for the
 standalone globe's one-click imagery button. Both paths use the same real
 Planetary Computer Sentinel-2 downloader.
 
-The imported React workspace lives in `portal/workspace-src/`. Build it with
-`npm install` and `npm run build` from that directory, then open
-`http://127.0.0.1:8000/workspace/`. It calls the same Python API as this
-portal. Its procedural terrain is only a pre-run preview; after a successful
-job it opens the real OBJ/MTL/texture output from the Python pipeline.
+The React workspace source lives in `portal/workspace-src/`. Build it with
+`npm install` and `npm run build` from that directory. The root URL and
+`/workspace/` both serve the built workspace. Its procedural terrain is only a
+pre-run preview; after a successful job it opens the real OBJ/MTL/texture
+output from the Python pipeline.
+
+The previous simple interface is still available at `/classic/`. The globe is
+available at `/globe/`, and the standalone mesh viewer is available at
+`/viewer/`.
 
 The model does not make accuracy claims without independent LiDAR, reference
 DSM, or GCP validation.

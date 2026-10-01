@@ -11,6 +11,8 @@ export interface PipelineResult {
   dsm?: string;
   uncertainty?: string;
   confidence?: string;
+  scene_risk?: string;
+  scene_quality?: string;
   metadata?: string;
   mesh?: string;
   material?: string;

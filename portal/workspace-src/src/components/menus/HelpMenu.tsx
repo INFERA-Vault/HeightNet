@@ -74,7 +74,7 @@ export const HelpMenu: React.FC = () => {
           >
             <div className="dw-menu-item-left">
               <Info size={13} />
-              <span>About Depth Wizard</span>
+              <span>About HeightNet</span>
             </div>
           </button>
         </div>

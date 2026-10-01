@@ -157,6 +157,8 @@ def _run_pipeline_job(job_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     dsm = output_dir / f"{prefix}_estimated_dsm.tif"
     uncertainty = output_dir / f"{prefix}_calibration_uncertainty.tif"
     confidence = output_dir / f"{prefix}_calibration_confidence.tif"
+    scene_risk = output_dir / f"{prefix}_scene_risk.tif"
+    scene_quality = output_dir / f"{prefix}_scene_quality.json"
     if agl.is_file():
         outputs["agl"] = _relative(agl)
     if dsm.is_file():
@@ -165,8 +167,12 @@ def _run_pipeline_job(job_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         outputs["uncertainty"] = _relative(uncertainty)
     if confidence.is_file():
         outputs["confidence"] = _relative(confidence)
+    if scene_risk.is_file():
+        outputs["scene_risk"] = _relative(scene_risk)
+    if scene_quality.is_file():
+        outputs["scene_quality"] = _relative(scene_quality)
     stats: dict[str, Any] = {}
-    for name, path in (("agl", agl), ("dsm", dsm), ("confidence", confidence)):
+    for name, path in (("agl", agl), ("dsm", dsm), ("confidence", confidence), ("scene_risk", scene_risk)):
         if path.is_file():
             stats[name] = raster_stats(path)
     if stats:
@@ -347,6 +353,22 @@ class PortalHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
+        # The React workspace is the main HeightNet product screen.  Keep the
+        # old standalone viewer available at /viewer/, but let the React app
+        # own its dedicated 3D route at /viewer/3d.
+        if parsed.path in {"/", "/workspace", "/workspace/", "/viewer/3d", "/viewer/3d/"}:
+            try:
+                self._serve_workspace_file("index.html")
+            except FileNotFoundError:
+                self.send_error(404, "Workspace build not found. Run npm install and npm run build in portal/workspace-src.")
+            return
+        # The previous vanilla portal remains available as a fallback while
+        # the React workspace becomes the default entry point.
+        if parsed.path == "/classic" or parsed.path.startswith("/classic/"):
+            relative_path = parsed.path.removeprefix("/classic/").strip("/") or "index.html"
+            self.path = "/" + relative_path
+            super().do_GET()
+            return
         if parsed.path == "/viewer" or parsed.path.startswith("/viewer/"):
             try:
                 relative_path = parsed.path.removeprefix("/viewer/")
@@ -361,7 +383,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
             except FileNotFoundError:
                 self.send_error(404, "Globe file not found")
             return
-        if parsed.path == "/workspace" or parsed.path.startswith("/workspace/"):
+        if parsed.path.startswith("/workspace/"):
             try:
                 relative_path = parsed.path.removeprefix("/workspace/")
                 self._serve_workspace_file(relative_path)
@@ -441,8 +463,6 @@ class PortalHandler(SimpleHTTPRequestHandler):
             except Exception as exc:
                 self._send_json({"error": str(exc)}, status=404)
             return
-        if parsed.path == "/":
-            self.path = "/index.html"
         super().do_GET()
 
     @staticmethod

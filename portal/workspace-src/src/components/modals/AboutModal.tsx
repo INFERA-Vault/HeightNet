@@ -13,7 +13,7 @@ export const AboutModal: React.FC = () => {
         <div className="modal-header">
           <div className="modal-title">
             <MountainSnow size={15} color="var(--accent-light)" />
-            <span>About Depth Wizard</span>
+            <span>About HeightNet</span>
           </div>
           <button className="modal-close-btn" onClick={closeModal} aria-label="Close">
             <X size={14} />
@@ -38,7 +38,7 @@ export const AboutModal: React.FC = () => {
           </div>
 
           <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>
-            Depth Wizard
+            HeightNet
           </h3>
           <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
             Professional GIS & 3D Terrain Visualization Workspace

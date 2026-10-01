@@ -64,6 +64,22 @@ def test_portal_serves_health_and_viewer() -> None:
             health = json.loads(response.read().decode("utf-8"))
         assert health["status"] == "ok"
 
+        with urlopen(f"{base_url}/", timeout=5) as response:
+            workspace_html = response.read().decode("utf-8")
+        assert response.status == 200
+        assert "HeightNet" in workspace_html
+        assert "/workspace/assets/" in workspace_html
+
+        with urlopen(f"{base_url}/classic/", timeout=5) as response:
+            classic_html = response.read().decode("utf-8")
+        assert response.status == 200
+        assert "Find a place" in classic_html
+
+        with urlopen(f"{base_url}/viewer/3d", timeout=5) as response:
+            dedicated_html = response.read().decode("utf-8")
+        assert response.status == 200
+        assert "/workspace/assets/" in dedicated_html
+
         with urlopen(f"{base_url}/viewer/", timeout=5) as response:
             viewer_html = response.read().decode("utf-8")
         assert response.status == 200

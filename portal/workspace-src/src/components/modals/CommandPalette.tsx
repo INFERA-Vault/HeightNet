@@ -328,7 +328,7 @@ export const CommandPalette: React.FC = () => {
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <HelpCircle size={13} />
-                  <span>About Depth Wizard</span>
+                  <span>About HeightNet</span>
                 </div>
               </Command.Item>
             </Command.Group>

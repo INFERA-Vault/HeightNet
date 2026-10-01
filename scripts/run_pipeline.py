@@ -81,6 +81,8 @@ def main() -> None:
     print("DSM output:", result.dsm_path)
     print("Calibration uncertainty:", result.calibration_uncertainty_path)
     print("Calibration confidence:", result.calibration_confidence_path)
+    print("Scene risk:", result.scene_risk_path)
+    print("Scene quality report:", result.scene_quality_path)
     print("Metadata:", result.metadata_path)
     for warning in result.warnings:
         print("Warning:", warning)
