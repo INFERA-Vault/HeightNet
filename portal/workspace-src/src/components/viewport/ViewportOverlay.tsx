@@ -3,8 +3,13 @@ import { Plus, Minus, RotateCcw, Navigation, Footprints } from 'lucide-react';
 import { useViewportStore } from '../../state/viewportStore';
 import { useAppStore } from '../../state/appStore';
 
-export const ViewportOverlay: React.FC = () => {
-  const activeView = useAppStore((state) => state.activeView);
+interface ViewportOverlayProps {
+  activeViewOverride?: import('../../types/viewport').ActiveView;
+}
+
+export const ViewportOverlay: React.FC<ViewportOverlayProps> = ({ activeViewOverride }) => {
+  const globalActiveView = useAppStore((state) => state.activeView);
+  const activeView = activeViewOverride ?? globalActiveView;
   const {
     viewport3D,
     resetCamera3D,

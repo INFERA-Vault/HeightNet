@@ -137,7 +137,7 @@
     return link;
   }
 
-  function renderOutputs(result) {
+  function renderOutputs(result, jobId) {
     const target = $('outputs');
     target.textContent = '';
     ['relative', 'agl', 'dsm', 'confidence', 'uncertainty'].forEach((key) => {
@@ -150,16 +150,9 @@
       target.appendChild(row);
     });
     if (result.mesh) {
-      const query = new URLSearchParams({
-        obj: `/api/file?path=${result.mesh}`,
-        mtl: result.material ? `/api/file?path=${result.material}` : '',
-        texture: result.texture ? `/api/file?path=${result.texture}` : '',
-        metadata: result.mesh_metadata ? `/api/file?path=${result.mesh_metadata}` : '',
-      });
       const link = document.createElement('a');
-      link.href = `/viewer/?${query.toString()}`;
-      link.target = '_blank';
-      link.textContent = 'Open generated terrain in 3D viewer';
+      link.href = `/?job=${encodeURIComponent(jobId)}`;
+      link.textContent = 'Open generated terrain in HeightNet workspace';
       const row = document.createElement('div');
       row.className = 'result-card';
       row.append(link);
@@ -180,7 +173,7 @@
       for (;;) {
         const job = await api(`/api/jobs/${started.id}`);
         setText('job-status', `${job.status}\n${job.message}`);
-        if (job.status === 'complete') { renderOutputs(job.result); return; }
+        if (job.status === 'complete') { renderOutputs(job.result, started.id); return; }
         if (job.status === 'failed') throw new Error(job.message);
         await new Promise((resolve) => setTimeout(resolve, 1500));
       }

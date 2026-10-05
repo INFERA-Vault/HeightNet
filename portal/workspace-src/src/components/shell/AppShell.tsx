@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { TopBar } from './TopBar';
 import { ViewSidebar } from '../navigation/ViewSidebar';
-import { MainViewport } from '../viewport/MainViewport';
+import { WorkspaceViewport } from '../workspace/WorkspaceViewport';
 import { InspectorPanel } from '../inspector/InspectorPanel';
 import { CommandPalette } from '../modals/CommandPalette';
 import { ProjectInfoModal } from '../modals/ProjectInfoModal';
@@ -9,10 +9,11 @@ import { KeyboardShortcutsModal } from '../modals/KeyboardShortcutsModal';
 import { AboutModal } from '../modals/AboutModal';
 import { ExportModal } from '../modals/ExportModal';
 import { LayerPropertiesModal } from '../modals/LayerPropertiesModal';
-import { LivePipelinePanel } from '../pipeline/LivePipelinePanel';
 import { useAppStore } from '../../state/appStore';
 import { useViewportStore } from '../../state/viewportStore';
 import { Info, CheckCircle2, AlertTriangle, X } from 'lucide-react';
+import { useWorkspaceStore } from '../../state/workspaceStore';
+import { UtilitiesDrawer } from '../utilities/UtilitiesDrawer';
 
 export const AppShell: React.FC = () => {
   const {
@@ -25,6 +26,14 @@ export const AppShell: React.FC = () => {
     dismissNotification,
     notify,
   } = useAppStore();
+  const { panels, activePaneId, setPaneView } = useWorkspaceStore();
+
+  // Keep the global view selector and the visible pane in sync. Without this,
+  // the header/sidebar could say Map or 3D while the canvas was still rendering
+  // the old Raster pane.
+  useEffect(() => {
+    setPaneView(activePaneId, activeView);
+  }, [activePaneId, activeView, setPaneView]);
 
   const {
     fit2DToView,
@@ -80,7 +89,9 @@ export const AppShell: React.FC = () => {
         notify('Switched to 3D Terrain Perspective', 'info');
       } else if (e.key.toLowerCase() === 'f') {
         e.preventDefault();
-        if (activeView === '2D') {
+        if (activeView === 'MAP') {
+          notify('Use the map controls to search and select an area', 'info');
+        } else if (activeView === '2D') {
           fit2DToView();
         } else {
           resetCamera3D();
@@ -88,7 +99,9 @@ export const AppShell: React.FC = () => {
         notify('Fitted to View', 'info');
       } else if (e.key.toLowerCase() === 'r') {
         e.preventDefault();
-        if (activeView === '2D') {
+        if (activeView === 'MAP') {
+          notify('Map view is ready for a new area selection', 'info');
+        } else if (activeView === '2D') {
           reset2DView();
         } else {
           resetCamera3D();
@@ -96,7 +109,9 @@ export const AppShell: React.FC = () => {
         notify('Camera / View Reset', 'info');
       } else if (e.key.toLowerCase() === 'g') {
         e.preventDefault();
-        if (activeView === '2D') {
+        if (activeView === 'MAP') {
+          notify('Map imagery already provides geographic context', 'info');
+        } else if (activeView === '2D') {
           toggleGrid2D();
         } else {
           toggleGrid3D();
@@ -128,35 +143,33 @@ export const AppShell: React.FC = () => {
   ]);
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${panels.left ? '' : 'panels-left-hidden'} ${panels.right ? '' : 'panels-right-hidden'} ${panels.bottom ? '' : 'panels-bottom-hidden'}`}>
       <TopBar />
 
       <div className="workspace-container">
         {/* Left Sidebar (Views + Layers) */}
-        <ViewSidebar />
+        {panels.left ? <ViewSidebar /> : null}
 
         {/* Left Splitter */}
-        <div
+        {panels.left ? <div
           className={`workspace-splitter ${isDraggingLeft ? 'dragging' : ''}`}
           onMouseDown={() => setIsDraggingLeft(true)}
           title="Drag to resize Views & Layers sidebar"
-        />
+        /> : null}
 
         {/* Center Main Viewport */}
-        <MainViewport />
+        <WorkspaceViewport />
 
         {/* Right Splitter */}
-        <div
+        {panels.right ? <div
           className={`workspace-splitter ${isDraggingRight ? 'dragging' : ''}`}
           onMouseDown={() => setIsDraggingRight(true)}
           title="Drag to resize Inspector panel"
-        />
+        /> : null}
 
         {/* Right Inspector Panel */}
-        <InspectorPanel />
+        {panels.right ? <InspectorPanel /> : null}
       </div>
-
-      <LivePipelinePanel />
 
       {/* Application Notifications / Toasts */}
       <div className="notification-container">
@@ -183,6 +196,7 @@ export const AppShell: React.FC = () => {
       <AboutModal />
       <ExportModal />
       <LayerPropertiesModal />
+      <UtilitiesDrawer />
     </div>
   );
 };

@@ -1,19 +1,26 @@
 import { create } from 'zustand';
 import type { ProjectData, ProjectMetadata } from '../types/project';
-import { GEO_BOUNDS, ELEVATION_MIN, ELEVATION_MAX } from '../renderer/noise/terrainNoise';
-import { artifactUrl, type InputInfo, type PipelineResult } from '../integration/api';
+import { artifactUrl, rasterPreviewUrl, type InputInfo, type PipelineResult } from '../integration/api';
+
+export interface TemporalRun {
+  id: string;
+  sceneId: string;
+  captureDate: string | null;
+  cloudCover: number | null;
+  result: PipelineResult;
+}
 
 const defaultMetadata: ProjectMetadata = {
   id: 'heightnet-live-session',
-  name: 'No live terrain loaded',
+  name: 'No project loaded',
   created: new Date().toISOString(),
   updated: new Date().toISOString(),
-  crs: 'No CRS loaded',
+  crs: 'CRS not available',
   bounds: {
-    west: GEO_BOUNDS.west,
-    east: GEO_BOUNDS.east,
-    south: GEO_BOUNDS.south,
-    north: GEO_BOUNDS.north,
+    west: 0,
+    east: 0,
+    south: 0,
+    north: 0,
   },
   dimensions: {
     width: 0,
@@ -23,8 +30,8 @@ const defaultMetadata: ProjectMetadata = {
     resolutionMeters: 10,
   },
   elevationStats: {
-    min: ELEVATION_MIN,
-    max: ELEVATION_MAX,
+    min: 0,
+    max: 0,
     mean: 0,
     unit: 'meters (AMSL)',
   },
@@ -39,13 +46,19 @@ const defaultMetadata: ProjectMetadata = {
 
 interface ProjectStore {
   project: ProjectData;
+  temporalRuns: TemporalRun[];
+  hydrateProject: () => void;
   setProjectName: (name: string) => void;
   updateMetadata: (meta: Partial<ProjectMetadata>) => void;
   setInputInfo: (name: string, info: InputInfo) => void;
   setLiveResult: (result: PipelineResult, viewerUrl: string | null) => void;
+  setTemporalRuns: (runs: TemporalRun[]) => void;
 }
 
+const PROJECT_STORAGE_KEY = 'heightnet:last-project';
+
 export const useProjectStore = create<ProjectStore>((set) => ({
+  temporalRuns: [],
   project: {
     metadata: defaultMetadata,
     sourceRasterUrl: '',
@@ -53,13 +66,16 @@ export const useProjectStore = create<ProjectStore>((set) => ({
     has3DReady: false,
     liveViewerUrl: null,
     rawOutputPaths: {
+      input: null,
       relative: null,
       agl: null,
       dsm: null,
       confidence: null,
       uncertainty: null,
+      sceneRisk: null,
     },
     outputs: {
+      input: null,
       relative: null,
       agl: null,
       dsm: null,
@@ -67,8 +83,24 @@ export const useProjectStore = create<ProjectStore>((set) => ({
       uncertainty: null,
       metadata: null,
       mesh: null,
+      material: null,
       texture: null,
+      meshMetadata: null,
+      sceneRisk: null,
     },
+  },
+  hydrateProject: () => {
+    if (typeof window === 'undefined') return;
+    try {
+      const saved = window.sessionStorage.getItem(PROJECT_STORAGE_KEY);
+      if (!saved) return;
+      const project = JSON.parse(saved) as ProjectData;
+      if (project?.metadata && project?.outputs && project?.rawOutputPaths) {
+        set({ project });
+      }
+    } catch {
+      window.sessionStorage.removeItem(PROJECT_STORAGE_KEY);
+    }
   },
   setProjectName: (name: string) =>
     set((state) => ({
@@ -91,7 +123,7 @@ export const useProjectStore = create<ProjectStore>((set) => ({
         metadata: {
           ...state.project.metadata,
           name,
-          crs: info.crs ?? 'No CRS loaded',
+          crs: info.crs ?? 'CRS not available',
           updated: new Date().toISOString(),
           dimensions: {
             ...state.project.metadata.dimensions,
@@ -102,22 +134,26 @@ export const useProjectStore = create<ProjectStore>((set) => ({
         },
       },
     })),
-  setLiveResult: (result, liveViewerUrl) =>
-    set((state) => ({
-      project: {
+  setLiveResult: (result, liveViewerUrl) => {
+    const stats = result.stats?.dsm ?? result.stats?.relative;
+    set((state) => {
+      const project: ProjectData = {
         ...state.project,
         sourceRasterUrl: artifactUrl(result.texture) ?? '',
-        depthMapUrl: artifactUrl(result.relative) ?? '',
+        depthMapUrl: rasterPreviewUrl(result.dsm ?? result.relative, 'elevation') ?? '',
         has3DReady: Boolean(result.mesh),
         liveViewerUrl,
         rawOutputPaths: {
+          input: result.input ?? null,
           relative: result.relative ?? null,
           agl: result.agl ?? null,
           dsm: result.dsm ?? null,
           confidence: result.confidence ?? null,
           uncertainty: result.uncertainty ?? null,
+          sceneRisk: result.scene_risk ?? null,
         },
         outputs: {
+          input: artifactUrl(result.input),
           relative: artifactUrl(result.relative),
           agl: artifactUrl(result.agl),
           dsm: artifactUrl(result.dsm),
@@ -125,12 +161,43 @@ export const useProjectStore = create<ProjectStore>((set) => ({
           uncertainty: artifactUrl(result.uncertainty),
           metadata: artifactUrl(result.metadata),
           mesh: artifactUrl(result.mesh),
+          material: artifactUrl(result.material),
           texture: artifactUrl(result.texture),
+          meshMetadata: artifactUrl(result.mesh_metadata),
+          sceneRisk: artifactUrl(result.scene_risk),
         },
         metadata: {
           ...state.project.metadata,
+          name: stats ? 'Generated HeightNet terrain' : state.project.metadata.name,
+          crs: stats?.crs ?? state.project.metadata.crs,
           updated: new Date().toISOString(),
+          dimensions: stats
+            ? {
+                ...state.project.metadata.dimensions,
+                width: stats.shape[1],
+                height: stats.shape[0],
+                dataType: 'Generated DSM',
+              }
+            : state.project.metadata.dimensions,
+          elevationStats: result.stats?.dsm
+            ? {
+                ...state.project.metadata.elevationStats,
+                min: result.stats.dsm.min,
+                max: result.stats.dsm.max,
+                mean: result.stats.dsm.mean,
+              }
+            : state.project.metadata.elevationStats,
         },
-      },
-    })),
+      };
+      if (typeof window !== 'undefined') {
+        try {
+          window.sessionStorage.setItem(PROJECT_STORAGE_KEY, JSON.stringify(project));
+        } catch {
+          // The browser may refuse a large session entry. The live project still works.
+        }
+      }
+      return { project };
+    });
+  },
+  setTemporalRuns: (temporalRuns) => set({ temporalRuns }),
 }));

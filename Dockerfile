@@ -29,7 +29,7 @@ RUN apt-get update \
 COPY pyproject.toml ./
 COPY backend/ ./backend/
 RUN python -m pip install --upgrade pip \
-    && python -m pip install ".[model,remote,preview]"
+    && python -m pip install --only-binary=:all: ".[model,remote,preview]"
 
 COPY configs/ ./configs/
 COPY portal/ ./portal/

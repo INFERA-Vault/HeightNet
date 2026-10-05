@@ -8,11 +8,14 @@ and starts the existing command-line pipeline as a background job.
 from __future__ import annotations
 
 import json
+from io import BytesIO
+import math
 import mimetypes
 from pathlib import Path
 import subprocess
 import sys
 import uuid
+import zipfile
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -25,9 +28,12 @@ from backend.acquisition.stac import (
     search_sentinel2_scenes,
     validate_bbox,
 )
+from backend.acquisition.sources import discover_sources
+from backend.acquisition.manifest import build_source_manifest
 from backend.geo.dem import fetch_nasadem_for_raster
+from backend.geo.qgis_project import open_qgis_project, prepare_qgis_project
 from backend.geo.raster import write_single_band_geotiff
-from backend.inspection import inspect_raster, raster_stats
+from backend.inspection import inspect_raster, profile_raster, raster_stats
 from backend.jobs.store import JobStore
 from backend.pipeline import describe_input
 from backend.evaluation.reference import (
@@ -45,8 +51,10 @@ JOBS_ROOT = REPO_ROOT / "data" / "portal_jobs"
 VIEWER_ROOT = REPO_ROOT / "viewer"
 GLOBE_ROOT = REPO_ROOT / "portal" / "globe"
 WORKSPACE_ROOT = REPO_ROOT / "portal" / "workspace-src" / "dist"
+LANDING_ROOT = REPO_ROOT / "portal" / "landing"
 MAX_UPLOAD_BYTES = 500 * 1024 * 1024
 JOB_STORE = JobStore()
+MIN_SENTINEL_VALID_FRACTION = 0.80
 
 
 def _relative(path: Path) -> str:
@@ -62,11 +70,62 @@ def _repo_path(value: str) -> Path:
     return candidate
 
 
+def _raster_bbox_wgs84(path: Path) -> tuple[float, float, float, float] | None:
+    """Return a GeoTIFF extent in WGS84 for source discovery and provenance."""
+
+    try:
+        import rasterio
+        from rasterio.warp import transform_bounds
+
+        with rasterio.open(path) as dataset:
+            if dataset.crs is None:
+                return None
+            bounds = transform_bounds(
+                dataset.crs,
+                "EPSG:4326",
+                *dataset.bounds,
+                densify_pts=21,
+            )
+        return tuple(float(value) for value in bounds)
+    except (ImportError, OSError, ValueError):
+        return None
+
+
+def _rgb_valid_fraction(path: Path) -> float:
+    """Estimate how much of an RGB raster contains real pixels.
+
+    Sentinel scenes can intersect an AOI while only partially covering it. The
+    missing part is commonly encoded as zeroes, which would otherwise become
+    a large black patch in the 3D texture.
+    """
+
+    try:
+        import numpy as np
+        import rasterio
+
+        with rasterio.open(path) as dataset:
+            if dataset.count < 3:
+                return 0.0
+            height = min(dataset.height, 512)
+            width = min(dataset.width, 512)
+            bands = dataset.read(
+                (1, 2, 3),
+                out_shape=(3, height, width),
+                masked=True,
+            ).astype("float32")
+        values = np.ma.filled(bands, np.nan)
+        valid = np.all(np.isfinite(values), axis=0) & np.any(values != 0, axis=0)
+        return float(valid.mean())
+    except (ImportError, OSError, ValueError):
+        return 0.0
+
+
 def _json_bytes(payload: object) -> bytes:
     return (json.dumps(payload, indent=2, default=str) + "\n").encode("utf-8")
 
 
 def _run_pipeline_job(job_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    JOB_STORE.update(job_id, message="Checking the image and loading the HeightNet model...")
     input_path = _repo_path(str(payload["input_path"]))
     if not input_path.is_file():
         raise ValueError(f"Input file does not exist: {input_path}")
@@ -90,11 +149,36 @@ def _run_pipeline_job(job_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         )
 
     description = describe_input(input_path)
+    JOB_STORE.update(job_id, message="Reading image metadata and preparing the elevation source...")
+    source_bbox = _raster_bbox_wgs84(input_path) if description.kind.value == "georeferenced" else None
+    source_availability: dict[str, Any] | None = None
+    if source_bbox is not None:
+        try:
+            source_availability = discover_sources(REPO_ROOT, source_bbox)
+        except Exception as exc:
+            # Catalog discovery is helpful context, not a reason to block a
+            # valid inference run. The selected coarse DEM still works.
+            source_availability = {
+                "bbox": list(source_bbox),
+                "sources": [],
+                "summary": {"reference_available": False, "gcp_upload_supported": True},
+                "discovery_warning": str(exc),
+            }
     ground_path: Path | None = None
+    ground_source: dict[str, Any] | None = None
     supplied_ground = payload.get("ground")
     if supplied_ground:
         ground_path = _repo_path(str(supplied_ground))
+        ground_source = {
+            "id": "selected:user-ground",
+            "name": ground_path.name,
+            "role": "coarse_ground",
+            "status": "selected",
+            "access": "user_supplied",
+            "provider": "User supplied",
+        }
     elif description.kind.value == "georeferenced":
+        JOB_STORE.update(job_id, message="Fetching a co-registered coarse ground elevation layer...")
         ground_path = job_dir / "nasadem_ground.tif"
         ground = fetch_nasadem_for_raster(input_path)
         write_single_band_geotiff(
@@ -103,6 +187,15 @@ def _run_pipeline_job(job_id: str, payload: dict[str, Any]) -> dict[str, Any]:
             ground.elevation,
             description="HeightNet NASADEM ground elevation proxy (metres)",
         )
+        ground_source = {
+            "id": "global:nasadem",
+            "name": "NASADEM via Microsoft Planetary Computer",
+            "role": "coarse_ground",
+            "status": "selected",
+            "access": "stac",
+            "provider": "Microsoft Planetary Computer",
+            "resolution_m": 30.0,
+        }
 
     command = [
         sys.executable,
@@ -134,6 +227,7 @@ def _run_pipeline_job(job_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     if ground_path is not None:
         command.extend(["--ground", str(ground_path)])
 
+    JOB_STORE.update(job_id, message="Predicting relative depth and calibrating above-ground height...")
     completed = subprocess.run(
         command,
         cwd=REPO_ROOT,
@@ -148,6 +242,7 @@ def _run_pipeline_job(job_id: str, payload: dict[str, Any]) -> dict[str, Any]:
 
     outputs: dict[str, Any] = {
         "log": combined,
+        "input": _relative(input_path),
         "relative": _relative(output_dir / f"{prefix}_relative_depth.tif")
         if description.kind.value == "georeferenced"
         else _relative(output_dir / f"{prefix}_relative_dsm.tif"),
@@ -177,6 +272,35 @@ def _run_pipeline_job(job_id: str, payload: dict[str, Any]) -> dict[str, Any]:
             stats[name] = raster_stats(path)
     if stats:
         outputs["stats"] = stats
+
+    source_manifest = build_source_manifest(
+        input_path=_relative(input_path),
+        input_kind=description.kind.value,
+        ground_path=_relative(ground_path) if ground_path is not None else None,
+        ground_source=ground_source,
+        availability=source_availability,
+        bbox=source_bbox,
+    )
+    if source_availability and source_availability.get("discovery_warning"):
+        source_manifest["discovery_warning"] = source_availability["discovery_warning"]
+    source_manifest_path = output_dir / f"{prefix}_source_manifest.json"
+    source_manifest_path.write_text(
+        json.dumps(source_manifest, indent=2, default=str) + "\n",
+        encoding="utf-8",
+    )
+    outputs["source_manifest"] = _relative(source_manifest_path)
+    pipeline_metadata_path = output_dir / f"{prefix}_pipeline_metadata.json"
+    if pipeline_metadata_path.is_file():
+        try:
+            pipeline_metadata = json.loads(pipeline_metadata_path.read_text(encoding="utf-8"))
+            pipeline_metadata["source_manifest"] = source_manifest
+            pipeline_metadata_path.write_text(
+                json.dumps(pipeline_metadata, indent=2, default=str) + "\n",
+                encoding="utf-8",
+            )
+        except (OSError, json.JSONDecodeError):
+            pass
+    JOB_STORE.update(job_id, message="Elevation layers are ready. Building the textured 3D terrain...")
     elevation = output_dir / f"{prefix}_estimated_dsm.tif"
     if not elevation.is_file():
         elevation = output_dir / f"{prefix}_relative_dsm.tif"
@@ -188,6 +312,12 @@ def _run_pipeline_job(job_id: str, payload: dict[str, Any]) -> dict[str, Any]:
             candidate_texture = _repo_path(str(supplied_texture))
             if candidate_texture.is_file():
                 mesh_rgb = candidate_texture
+        # Keep browser jobs responsive. The downloaded raster can be much
+        # larger than a useful interactive mesh, so choose a stride that keeps
+        # the terrain near 180k vertices while preserving small demos at the
+        # existing stride of 8.
+        pixel_count = max(description.width * description.height, 1)
+        mesh_stride = max(8, int(math.ceil(math.sqrt(pixel_count / 180_000))))
         mesh_command = [
             sys.executable,
             str(REPO_ROOT / "scripts" / "export_terrain_mesh.py"),
@@ -198,9 +328,9 @@ def _run_pipeline_job(job_id: str, payload: dict[str, Any]) -> dict[str, Any]:
             "--output",
             str(mesh),
             "--stride",
-            "8",
+            str(mesh_stride),
             "--vertical-exaggeration",
-            "2.0",
+            "1.0",
         ]
         mesh_result = subprocess.run(
             mesh_command,
@@ -223,8 +353,11 @@ def _run_pipeline_job(job_id: str, payload: dict[str, Any]) -> dict[str, Any]:
                 outputs["mesh_metadata"] = _relative(mesh_metadata)
             outputs["mesh_log"] = mesh_result.stdout[-2000:]
             outputs["mesh_rgb"] = _relative(mesh_rgb)
+            outputs["mesh_stride"] = mesh_stride
+            JOB_STORE.update(job_id, message="Terrain mesh and exports are ready. Opening the 3D view...")
         else:
             outputs["mesh_warning"] = (mesh_result.stdout + mesh_result.stderr)[-2000:]
+            JOB_STORE.update(job_id, message="Elevation layers are ready, but the 3D mesh export failed.")
     return outputs
 
 
@@ -351,8 +484,125 @@ class PortalHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _serve_landing_file(self, relative_path: str) -> None:
+        """Serve the public product overview without exposing the repository."""
+
+        requested = relative_path.strip("/") or "index.html"
+        candidate = (LANDING_ROOT / requested).resolve()
+        try:
+            candidate.relative_to(LANDING_ROOT.resolve())
+        except ValueError as exc:
+            raise FileNotFoundError("Landing path is outside the landing directory.") from exc
+        if not candidate.is_file():
+            raise FileNotFoundError(candidate)
+        body = candidate.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", mimetypes.guess_type(candidate.name)[0] or "application/octet-stream")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    @staticmethod
+    def _landing_summary() -> dict[str, Any]:
+        """Return metadata for the newest generated terrain, if one exists."""
+
+        textures = sorted(
+            JOBS_ROOT.glob("*/outputs/*_terrain_texture.png"),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+        if not textures:
+            return {"loaded": False}
+
+        texture = textures[0]
+        prefix = texture.stem.removesuffix("_terrain_texture")
+        output_dir = texture.parent
+        pipeline_path = output_dir / f"{prefix}_pipeline_metadata.json"
+        terrain_path = output_dir / f"{prefix}_terrain_metadata.json"
+        quality_path = output_dir / f"{prefix}_scene_quality.json"
+
+        pipeline: dict[str, Any] = {}
+        terrain: dict[str, Any] = {}
+        quality: dict[str, Any] = {}
+        for path, target in ((pipeline_path, pipeline), (terrain_path, terrain), (quality_path, quality)):
+            if path.is_file():
+                try:
+                    target.update(json.loads(path.read_text(encoding="utf-8")))
+                except (OSError, json.JSONDecodeError):
+                    continue
+
+        input_info = pipeline.get("input", {})
+        transform = input_info.get("transform", [])
+        resolution = transform[0] if transform and isinstance(transform[0], (int, float)) else None
+        relative_texture = _relative(texture)
+        return {
+            "loaded": True,
+            "scene": prefix,
+            "texture_url": f"/api/file?path={relative_texture}",
+            "crs": input_info.get("crs") or terrain.get("crs") or "CRS unavailable",
+            "width": input_info.get("width") or terrain.get("width") or 0,
+            "height": input_info.get("height") or terrain.get("height") or 0,
+            "resolution": resolution,
+            "metric_scale": bool(pipeline.get("metric_scale", False)),
+            "risk_score": float(quality.get("risk_score", 0.0)),
+        }
+
+    def _serve_raster_preview(self, path: Path, palette: str) -> None:
+        """Render one generated raster as a browser-friendly PNG preview."""
+
+        try:
+            import numpy as np
+            import rasterio
+            from PIL import Image
+        except ImportError as exc:
+            raise RuntimeError("Raster previews require Rasterio, NumPy, and Pillow.") from exc
+
+        with rasterio.open(path) as dataset:
+            data = dataset.read(1, masked=True).astype("float32")
+        values = data.filled(np.nan)
+        valid = np.isfinite(values)
+        if not valid.any():
+            raise ValueError("The raster has no valid pixels.")
+
+        low, high = np.nanpercentile(values, (2, 98))
+        if not np.isfinite(low) or not np.isfinite(high) or high <= low:
+            low = float(np.nanmin(values))
+            high = low + 1.0
+        normalized = np.clip((values - low) / (high - low), 0.0, 1.0)
+        normalized = np.where(valid, normalized, 0.0)
+
+        palettes = {
+            "elevation": np.array([[35, 23, 92], [43, 111, 190], [25, 180, 170], [144, 220, 75], [245, 190, 45], [190, 55, 35]], dtype=np.float32),
+            "confidence": np.array([[30, 38, 48], [38, 126, 184], [67, 183, 140], [220, 235, 120]], dtype=np.float32),
+            "risk": np.array([[22, 35, 45], [44, 120, 170], [244, 190, 72], [210, 55, 55]], dtype=np.float32),
+            "gray": np.array([[15, 15, 15], [240, 240, 240]], dtype=np.float32),
+        }
+        stops = palettes.get(palette, palettes["elevation"])
+        positions = np.linspace(0.0, 1.0, len(stops))
+        rgb = np.empty((*values.shape, 3), dtype=np.uint8)
+        for channel in range(3):
+            rgb[..., channel] = np.interp(normalized, positions, stops[:, channel]).astype(np.uint8)
+        rgba = np.concatenate([rgb, (valid.astype(np.uint8) * 255)[..., None]], axis=2)
+
+        output = BytesIO()
+        Image.fromarray(rgba, mode="RGBA").save(output, format="PNG", optimize=True)
+        body = output.getvalue()
+        self.send_response(200)
+        self.send_header("Content-Type", "image/png")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
+        if parsed.path == "/landing" or parsed.path.startswith("/landing/"):
+            try:
+                relative_path = parsed.path.removeprefix("/landing/")
+                self._serve_landing_file(relative_path)
+            except FileNotFoundError:
+                self.send_error(404, "Landing page file not found")
+            return
         # The React workspace is the main HeightNet product screen.  Keep the
         # old standalone viewer available at /viewer/, but let the React app
         # own its dedicated 3D route at /viewer/3d.
@@ -377,11 +627,12 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 self.send_error(404, "Viewer file not found")
             return
         if parsed.path == "/globe" or parsed.path.startswith("/globe/"):
-            try:
-                relative_path = parsed.path.removeprefix("/globe/")
-                self._serve_globe_file(relative_path)
-            except FileNotFoundError:
-                self.send_error(404, "Globe file not found")
+            # Map acquisition now lives inside the React workspace. Keep the old
+            # route as a friendly compatibility redirect instead of exposing a
+            # second, visually unrelated application.
+            self.send_response(302)
+            self.send_header("Location", "/?view=map")
+            self.end_headers()
             return
         if parsed.path.startswith("/workspace/"):
             try:
@@ -392,6 +643,9 @@ class PortalHandler(SimpleHTTPRequestHandler):
             return
         if parsed.path == "/api/health":
             self._send_json({"status": "ok", "service": "heightnet-portal"})
+            return
+        if parsed.path == "/api/landing-summary":
+            self._send_json(self._landing_summary())
             return
         if parsed.path == "/api/geocode":
             query = parse_qs(parsed.query).get("q", [""])[0]
@@ -406,8 +660,30 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 bbox = validate_bbox(query.get("bbox", [""])[0].split(","))
                 cloud = float(query.get("cloud", ["30"])[0])
                 limit = int(query.get("limit", ["10"])[0])
-                scenes = search_sentinel2_scenes(bbox, max_cloud=cloud, limit=limit)
+                date_from = query.get("from", [""])[0].strip() or None
+                date_to = query.get("to", [""])[0].strip() or None
+                search_kwargs: dict[str, Any] = {"max_cloud": cloud, "limit": limit}
+                if date_from is not None:
+                    search_kwargs["date_from"] = date_from
+                if date_to is not None:
+                    search_kwargs["date_to"] = date_to
+                scenes = search_sentinel2_scenes(bbox, **search_kwargs)
                 self._send_json({"bbox": bbox, "scenes": scenes})
+            except Exception as exc:
+                self._send_json({"error": str(exc)}, status=400)
+            return
+        if parsed.path == "/api/reference-availability":
+            query = parse_qs(parsed.query)
+            try:
+                bbox = validate_bbox(query.get("bbox", [""])[0].split(","))
+                include_remote = query.get("remote", ["1"])[0].lower() not in {"0", "false", "no"}
+                self._send_json(
+                    discover_sources(
+                        REPO_ROOT,
+                        bbox,
+                        include_remote_catalog=include_remote,
+                    )
+                )
             except Exception as exc:
                 self._send_json({"error": str(exc)}, status=400)
             return
@@ -438,6 +714,32 @@ class PortalHandler(SimpleHTTPRequestHandler):
             except Exception as exc:
                 self._send_json({"error": str(exc)}, status=400)
             return
+        if parsed.path == "/api/profile":
+            try:
+                query = parse_qs(parsed.query)
+                value = query.get("path", [""])[0]
+                path = _repo_path(unquote(value))
+                if not path.is_file():
+                    raise FileNotFoundError(path)
+                start = (float(query.get("start_x", [""])[0]), float(query.get("start_y", [""])[0]))
+                end = (float(query.get("end_x", [""])[0]), float(query.get("end_y", [""])[0]))
+                samples = int(query.get("samples", ["64"])[0])
+                self._send_json(profile_raster(path, start, end, samples=samples))
+            except Exception as exc:
+                self._send_json({"error": str(exc)}, status=400)
+            return
+        if parsed.path == "/api/raster-preview":
+            try:
+                query = parse_qs(parsed.query)
+                value = query.get("path", [""])[0]
+                path = _repo_path(unquote(value))
+                if not path.is_file():
+                    raise FileNotFoundError(path)
+                palette = query.get("palette", ["elevation"])[0]
+                self._serve_raster_preview(path, palette)
+            except Exception as exc:
+                self._send_json({"error": str(exc)}, status=400)
+            return
         if parsed.path.startswith("/api/jobs/"):
             job_id = parsed.path.rsplit("/", 1)[-1]
             job = JOB_STORE.get(job_id)
@@ -457,6 +759,8 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 body = path.read_bytes()
                 self.send_response(200)
                 self.send_header("Content-Type", mimetypes.guess_type(path.name)[0] or "application/octet-stream")
+                if path.suffix.lower() in {".qgs", ".qgz"}:
+                    self.send_header("Content-Disposition", f'attachment; filename="{path.name}"')
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
@@ -500,6 +804,12 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 return
             if parsed.path == "/api/evaluate":
                 self._handle_evaluate(payload)
+                return
+            if parsed.path == "/api/open-qgis":
+                self._handle_open_qgis(payload)
+                return
+            if parsed.path == "/api/export-bundle":
+                self._handle_export_bundle(payload)
                 return
             self._send_json({"error": "Unknown API route."}, status=404)
         except Exception as exc:
@@ -570,7 +880,10 @@ class PortalHandler(SimpleHTTPRequestHandler):
         if output_format not in {"geotiff", "png"}:
             raise ValueError("format must be 'geotiff' or 'png'.")
         max_cloud = float(payload.get("max_cloud_cover", 30.0))
-        scenes = search_sentinel2_scenes(bbox, max_cloud=max_cloud, limit=1)
+        requested_scene = payload.get("scene")
+        if requested_scene is not None and not isinstance(requested_scene, dict):
+            raise ValueError("scene must be an object returned by /api/scenes.")
+        scenes = [requested_scene] if isinstance(requested_scene, dict) else search_sentinel2_scenes(bbox, max_cloud=max_cloud, limit=1)
         if not scenes:
             raise ValueError("No Sentinel-2 scene matched this area and cloud limit.")
 
@@ -580,6 +893,13 @@ class PortalHandler(SimpleHTTPRequestHandler):
         artifact_dir.mkdir(parents=True, exist_ok=True)
         geotiff_path = artifact_dir / "sentinel2_rgb.tif"
         downloaded = download_scene_rgb(scene, geotiff_path, bbox=bbox)
+        valid_fraction = _rgb_valid_fraction(downloaded)
+        if valid_fraction < MIN_SENTINEL_VALID_FRACTION:
+            raise ValueError(
+                "This Sentinel-2 capture does not cover enough of the selected area "
+                f"({valid_fraction:.0%} valid pixels). Choose another date or draw a "
+                "smaller area inside the scene footprint."
+            )
         visual_path = artifact_dir / "sentinel2_visual.tif"
         try:
             download_scene_visual(scene, visual_path, bbox=bbox)
@@ -627,6 +947,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
             "file": _relative(artifact_path),
             "visual_file": _relative(visual_path) if visual_path and visual_path.is_file() else None,
             "dimensions": [description.height, description.width],
+            "valid_fraction": valid_fraction,
         }
         self._send_json(response)
 
@@ -669,6 +990,88 @@ class PortalHandler(SimpleHTTPRequestHandler):
         job = JOB_STORE.create("reference-evaluation")
         JOB_STORE.start(job, lambda: _run_reference_evaluation_job(job.id, payload))
         self._send_json(job.as_dict(), status=202)
+
+    def _handle_open_qgis(self, payload: dict[str, Any]) -> None:
+        """Create one QGIS project from the current HeightNet result."""
+
+        raw_layers = payload.get("layers")
+        if not isinstance(raw_layers, list) or not raw_layers:
+            raise ValueError("At least one raster layer is required to open QGIS.")
+
+        layers: list[dict[str, Any]] = []
+        seen: set[Path] = set()
+        allowed_suffixes = {".tif", ".tiff", ".vrt", ".png", ".jpg", ".jpeg"}
+        for item in raw_layers:
+            if not isinstance(item, dict) or not item.get("path"):
+                continue
+            path = _repo_path(str(item["path"]))
+            if path.suffix.lower() not in allowed_suffixes:
+                continue
+            if not path.is_file() or path in seen:
+                continue
+            seen.add(path)
+            layers.append(
+                {
+                    "path": str(path),
+                    "label": str(item.get("label") or path.stem),
+                    "visible": bool(item.get("visible", True)),
+                    "opacity": float(item.get("opacity", 1.0)),
+                }
+            )
+
+        if not layers:
+            raise ValueError("None of the supplied raster layers exists anymore.")
+
+        project_path, _ = prepare_qgis_project(JOBS_ROOT, layers)
+        launched, message = open_qgis_project(project_path)
+        relative_project = _relative(project_path)
+        self._send_json(
+            {
+                "project_path": relative_project,
+                "project_url": f"/api/file?path={relative_project}",
+                "layers": [{"label": layer["label"], "visible": layer["visible"], "opacity": layer["opacity"]} for layer in layers],
+                "qgis_found": launched or "QGIS was not found" not in message,
+                "qgis_launched": launched,
+                "message": message,
+            }
+        )
+
+    def _handle_export_bundle(self, payload: dict[str, Any]) -> None:
+        """Package the current result files so users do not have to download them one by one."""
+
+        raw_files = payload.get("files")
+        if not isinstance(raw_files, list):
+            raise ValueError("A list of output files is required.")
+        files: list[tuple[Path, str]] = []
+        seen: set[Path] = set()
+        for item in raw_files:
+            if not isinstance(item, dict) or not item.get("path"):
+                continue
+            path = _repo_path(str(item["path"]))
+            if not path.is_file() or path in seen:
+                continue
+            seen.add(path)
+            label = Path(str(item.get("name") or path.name)).name
+            files.append((path, label))
+        if not files:
+            raise ValueError("None of the supplied output files exist anymore.")
+
+        bundle_id = f"export-{uuid.uuid4().hex[:12]}"
+        bundle_dir = JOBS_ROOT / bundle_id
+        bundle_dir.mkdir(parents=True, exist_ok=True)
+        bundle_path = bundle_dir / "heightnet-results.zip"
+        with zipfile.ZipFile(bundle_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            for path, label in files:
+                archive.write(path, arcname=label)
+        relative_bundle = _relative(bundle_path)
+        self._send_json(
+            {
+                "path": relative_bundle,
+                "url": f"/api/file?path={relative_bundle}",
+                "filename": bundle_path.name,
+                "files": [label for _, label in files],
+            }
+        )
 
 
 def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPServer:

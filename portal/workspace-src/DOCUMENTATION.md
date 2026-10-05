@@ -22,12 +22,11 @@ model and does not calculate heights itself.
    uncertainty, metadata, and mesh files.
 5. The standalone viewer loads the real OBJ, MTL, texture, and metadata.
 
-## Why there is a fallback mountain
+## Empty state
 
-The original UI branch was built before the model connection. Its empty-state
-3D scene uses procedural noise so the controls can be tested without a file.
-It is deliberately kept as a preview only. It must not be used in a demo as if
-it were a prediction.
+The workspace does not generate a fake mountain or raster before a job runs.
+It shows the next useful action instead: open Map Acquisition or upload an
+image. This keeps demo output separate from actual model output.
 
 ## Run
 

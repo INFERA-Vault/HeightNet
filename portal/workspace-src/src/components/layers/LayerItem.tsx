@@ -11,7 +11,7 @@ interface LayerItemProps {
 }
 
 export const LayerItem: React.FC<LayerItemProps> = ({ layer }) => {
-  const { selectedLayerId, selectLayer, toggleLayerVisibility } = useLayerStore();
+  const { selectedLayerId, selectLayer, toggleLayerVisibility, setLayerOpacity } = useLayerStore();
   const { toggleWireframe3D, toggleGrid2D, toggleGrid3D, toggleWater3D } =
     useViewportStore();
 
@@ -73,6 +73,20 @@ export const LayerItem: React.FC<LayerItemProps> = ({ layer }) => {
         <span className="layer-name">{layer.name}</span>
 
         <span className="layer-type-tag">{layer.typeBadge}</span>
+
+        <input
+          className="layer-opacity-mini"
+          type="range"
+          min="0"
+          max="1"
+          step="0.05"
+          value={layer.opacity}
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => setLayerOpacity(layer.id, Number(e.target.value))}
+          aria-label={`${layer.name} opacity`}
+          title={`${Math.round(layer.opacity * 100)}% opacity`}
+        />
+        <span className="layer-opacity-value">{Math.round(layer.opacity * 100)}%</span>
 
         <button
           className="layer-more-btn"

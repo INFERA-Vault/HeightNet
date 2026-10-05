@@ -3,15 +3,30 @@ import { useViewportStore } from '../../state/viewportStore';
 import { useProjectStore } from '../../state/projectStore';
 import { useAppStore } from '../../state/appStore';
 
-export const ViewportStatusBar: React.FC = () => {
-  const activeView = useAppStore((state) => state.activeView);
+interface ViewportStatusBarProps {
+  activeViewOverride?: import('../../types/viewport').ActiveView;
+}
+
+export const ViewportStatusBar: React.FC<ViewportStatusBarProps> = ({ activeViewOverride }) => {
+  const globalActiveView = useAppStore((state) => state.activeView);
+  const activeView = activeViewOverride ?? globalActiveView;
   const project = useProjectStore((state) => state.project);
   const { viewport2D, cursorReadout, viewport3D, camera3DReadout } =
     useViewportStore();
 
   return (
-    <footer className="viewport-status-bar" role="status" aria-label="GIS Telemetry Status Bar">
-      {activeView === '2D' ? (
+    <footer className="viewport-status-bar" role="status" aria-label="Workspace status">
+      {activeView === 'MAP' ? (
+        <>
+          <div className="status-panes-group">
+            <div className="status-pane"><span className="status-label">View</span><span className="status-value accent">Map</span></div>
+            <div className="status-pane"><span className="status-label">Data</span><span className="status-value">Sentinel-2 RGB</span></div>
+          </div>
+          <div className="status-panes-group">
+            <div className="status-pane"><span className="status-label">Next</span><span className="status-value">Draw a rectangle on the map</span></div>
+          </div>
+        </>
+      ) : activeView === '2D' ? (
         <>
           <div className="status-panes-group">
             <div className="status-pane hide-md">
@@ -47,7 +62,7 @@ export const ViewportStatusBar: React.FC = () => {
             <div className="status-pane">
               <span className="status-label">ELEV:</span>
               <span className="status-value accent">
-                {cursorReadout.elevation.toLocaleString(undefined, { maximumFractionDigits: 2 })} m AMSL
+                {cursorReadout.readoutSource === 'live-raster' ? `${cursorReadout.elevation.toLocaleString(undefined, { maximumFractionDigits: 2 })} m AMSL` : '— click the DSM to inspect height'}
                 {cursorReadout.slopeDegrees != null ? ` · ${cursorReadout.slopeDegrees.toFixed(1)}° slope` : ''}
               </span>
             </div>

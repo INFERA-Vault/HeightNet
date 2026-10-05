@@ -19,6 +19,20 @@ h1 { margin-bottom: 6px; font-size: clamp(24px, 4vw, 38px); }
 .map-card, .control-panel { border: 1px solid #234341; border-radius: 16px; background: #0d1c1eeb; box-shadow: 0 16px 40px #0004; overflow: hidden; }
 .map-card { min-height: 690px; position: relative; }
 #map { width: 100%; height: 690px; min-height: 520px; }
+.leaflet-control-layers {
+  min-width: 142px;
+  border: 1px solid #34464a !important;
+  border-radius: 8px !important;
+  background: rgba(16, 24, 27, .94) !important;
+  color: #d9e5e6;
+  box-shadow: 0 8px 24px #0005 !important;
+  font-size: 11px;
+}
+.leaflet-control-layers-list { margin: 4px 2px; }
+.leaflet-control-layers-base label,
+.leaflet-control-layers-overlays label { padding: 4px 3px; border-radius: 4px; }
+.leaflet-control-layers-base label:hover,
+.leaflet-control-layers-overlays label:hover { background: #223236; }
 .map-help { position: absolute; left: 14px; bottom: 14px; z-index: 500; max-width: 360px; padding: 9px 11px; border: 1px solid #2d5551; border-radius: 8px; background: #0d1c1ee8; color: #c5d9d7; font-size: 12px; }
 .map-coordinates { padding: 6px 8px; border: 1px solid #2d5551; border-radius: 6px; background: #0d1c1ee8; color: #d5eeea; font-size: 11px; }
 .control-panel { padding: 4px 16px; max-height: 690px; overflow: auto; }

@@ -8,7 +8,7 @@ export type LayerType =
   | 'water'
   | 'grid';
 
-export type ViewTarget = '2D' | '3D' | 'both';
+export type ViewTarget = 'MAP' | '2D' | '3D' | 'both';
 
 export interface LayerItemData {
   id: string;

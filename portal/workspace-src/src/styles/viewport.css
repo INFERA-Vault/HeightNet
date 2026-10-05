@@ -14,11 +14,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 26px;
-  min-height: 26px;
+  height: 36px;
+  min-height: 36px;
   background-color: var(--bg-panel-header);
   border-bottom: 1px solid var(--border-subtle);
-  padding: 0 6px;
+  padding: 0 10px;
   z-index: 30;
 }
 
@@ -29,11 +29,11 @@
 }
 
 .toolbar-btn {
-  height: 20px;
-  padding: 0 5px;
-  border-radius: var(--radius-xs);
+  height: 28px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
   color: var(--text-secondary);
-  font-size: 10.5px;
+  font-size: 11px;
   border: 1px solid transparent;
   gap: 4px;
 }
@@ -190,6 +190,50 @@
   height: 100%;
   position: relative;
   background: #090a0d;
+}
+
+.terrain-load-state {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border: 1px solid var(--border-medium);
+  border-radius: 4px;
+  background: rgba(18, 24, 29, 0.92);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.terrain-load-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-light);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.8);
+  animation: terrainPulse 1s ease-in-out infinite;
+}
+
+.terrain-load-error {
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 360px;
+  color: #fecdd3;
+  pointer-events: auto;
+}
+
+.terrain-load-error span {
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+@keyframes terrainPulse {
+  50% { opacity: 0.35; transform: scale(0.75); }
 }
 
 /* Compact 3D View Controls */

@@ -71,6 +71,7 @@ def main() -> None:
     parser.add_argument("--ground", required=True)
     parser.add_argument("--uncertainty")
     parser.add_argument("--confidence")
+    parser.add_argument("--scene-risk")
     parser.add_argument("--output")
     args = parser.parse_args()
 
@@ -79,6 +80,8 @@ def main() -> None:
         paths["uncertainty"] = args.uncertainty
     if args.confidence:
         paths["confidence"] = args.confidence
+    if args.scene_risk:
+        paths["scene_risk"] = args.scene_risk
     report = validate(args.input, paths)
     text = json.dumps(report, indent=2) + "\n"
     if args.output:

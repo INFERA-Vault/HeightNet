@@ -50,12 +50,11 @@ export const useAppStore = create<AppStore>((set) => ({
   activeView:
     typeof window !== 'undefined' && window.location.pathname.startsWith('/viewer/3d')
       ? '3D'
-      : '2D', // STRICT DEFAULT AS SPECIFIED FOR WORKSPACE
+      : typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('view') === 'map'
+        ? 'MAP'
+        : 'MAP',
 
-  currentScreen:
-    typeof window !== 'undefined' && window.location.pathname.startsWith('/viewer/3d')
-      ? 'dedicated_3d_viewer'
-      : 'workspace',
+  currentScreen: 'workspace',
 
   setActiveView: (view) => set({ activeView: view }),
   setCurrentScreen: (screen) => set({ currentScreen: screen }),
@@ -74,10 +73,7 @@ export const useAppStore = create<AppStore>((set) => ({
       return;
     }
 
-    set({ currentScreen: 'dedicated_3d_viewer', activeView: '3D' });
-    if (typeof window !== 'undefined' && window.location.pathname !== '/viewer/3d') {
-      window.history.pushState({ screen: 'dedicated_3d_viewer' }, '', '/viewer/3d');
-    }
+    set({ currentScreen: 'workspace', activeView: '3D' });
   },
 
   backToWorkspace: () => {

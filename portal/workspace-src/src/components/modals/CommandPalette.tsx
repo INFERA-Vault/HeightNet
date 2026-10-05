@@ -94,6 +94,19 @@ export const CommandPalette: React.FC = () => {
               <Command.Item
                 className="cmd-item"
                 onSelect={() => runCommand(() => {
+                  setActiveView('MAP');
+                  notify('Switched to Map Acquisition', 'info');
+                })}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Compass size={13} />
+                  <span>Open Map Acquisition</span>
+                </div>
+              </Command.Item>
+
+              <Command.Item
+                className="cmd-item"
+                onSelect={() => runCommand(() => {
                   setActiveView('2D');
                   notify('Switched to 2D Raster View', 'info');
                 })}

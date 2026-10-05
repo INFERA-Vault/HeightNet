@@ -1,8 +1,8 @@
 # HeightNet in Docker
 
-Docker runs the Python API, the map portal, the Cesium globe, the React
-workspace, and the Three.js viewer in one container. Large data and model
-files stay on the host and are mounted into the container.
+Docker runs the Python API, the main React workspace, and the Three.js viewer
+in one container. Map acquisition is part of the workspace. Large data and
+model files stay on the host and are mounted into the container.
 
 ## Requirements
 
@@ -22,10 +22,9 @@ docker compose up --build
 Open these pages in a browser:
 
 ```text
-http://localhost:8000/           basic map-to-terrain portal
-http://localhost:8000/globe/     world map and area selection
-http://localhost:8000/workspace/ React workspace
-http://localhost:8000/viewer/   generated OBJ terrain viewer
+http://localhost:8000/           main HeightNet workspace
+http://localhost:8000/workspace/ main workspace route
+http://localhost:8000/viewer/    generated OBJ terrain viewer
 ```
 
 The API health check is:

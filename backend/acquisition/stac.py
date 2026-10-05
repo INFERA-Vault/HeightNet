@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 import json
 from pathlib import Path
 import tempfile
@@ -92,6 +93,7 @@ def _scene_summary(feature: dict[str, Any]) -> dict[str, Any]:
         "scene_id": feature.get("id"),
         "capture_date": properties.get("datetime") or properties.get("start_datetime"),
         "cloud_cover": properties.get("eo:cloud_cover"),
+        "platform": properties.get("platform") or properties.get("constellation"),
         "bbox": feature.get("bbox"),
         "item_url": _scene_url(feature),
         "rgb_assets": asset_keys,
@@ -104,12 +106,19 @@ def search_sentinel2_scenes(
     *,
     max_cloud: float = 30.0,
     limit: int = 10,
+    date_from: str | None = None,
+    date_to: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Search Sentinel-2 L2A scenes intersecting a WGS84 bbox."""
+    """Search Sentinel-2 L2A scenes intersecting a WGS84 bbox.
+
+    ``date_from`` and ``date_to`` are optional ISO dates.  Leaving both empty
+    keeps the old behaviour: return the newest matching scenes first.
+    """
 
     validated = validate_bbox(bbox)
     if not 0 <= float(max_cloud) <= 100:
         raise AcquisitionError("Cloud cover must be between 0 and 100.")
+    date_filter = _build_date_filter(date_from, date_to)
     payload = {
         "collections": ["sentinel-2-l2a"],
         "bbox": list(validated),
@@ -117,6 +126,8 @@ def search_sentinel2_scenes(
         "query": {"eo:cloud_cover": {"lte": float(max_cloud)}},
         "sortby": [{"field": "properties.datetime", "direction": "desc"}],
     }
+    if date_filter is not None:
+        payload["datetime"] = date_filter
     response = _request_json(f"{STAC_API}/search", method="POST", payload=payload)
     features = response.get("features", [])
     scenes = []
@@ -125,6 +136,29 @@ def search_sentinel2_scenes(
         if len(summary["rgb_assets"]) == 3:
             scenes.append(summary)
     return scenes
+
+
+def _build_date_filter(date_from: str | None, date_to: str | None) -> str | None:
+    """Build a STAC datetime interval from inclusive YYYY-MM-DD values."""
+
+    start = _parse_scene_date(date_from, "Start date")
+    end = _parse_scene_date(date_to, "End date")
+    if start and end and start > end:
+        raise AcquisitionError("Start date must be on or before end date.")
+    if not start and not end:
+        return None
+    start_text = f"{start.isoformat()}T00:00:00Z" if start else ".."
+    end_text = f"{end.isoformat()}T23:59:59Z" if end else ".."
+    return f"{start_text}/{end_text}"
+
+
+def _parse_scene_date(value: str | None, label: str) -> date | None:
+    if value is None or not str(value).strip():
+        return None
+    try:
+        return date.fromisoformat(str(value).strip())
+    except ValueError as exc:
+        raise AcquisitionError(f"{label} must use YYYY-MM-DD format.") from exc
 
 
 def download_scene_rgb(
@@ -184,3 +218,5 @@ class SceneRequest:
     bbox: tuple[float, float, float, float]
     max_cloud: float = 30.0
     limit: int = 10
+    date_from: str | None = None
+    date_to: str | None = None

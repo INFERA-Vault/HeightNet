@@ -1,12 +1,16 @@
 import React from 'react';
+import { Box, Image, Map as MapIcon } from 'lucide-react';
 import { useAppStore } from '../../state/appStore';
 import type { ActiveView } from '../../types/viewport';
+import { useWorkspaceStore } from '../../state/workspaceStore';
 
 export const ViewSelector: React.FC = () => {
   const { activeView, setActiveView } = useAppStore();
+  const { activePaneId, setPaneView } = useWorkspaceStore();
 
   const handleSelectView = (view: ActiveView) => {
     setActiveView(view);
+    setPaneView(activePaneId, view);
   };
 
   return (
@@ -17,15 +21,25 @@ export const ViewSelector: React.FC = () => {
 
       <div className="views-container">
         <button
+          id="view-btn-map"
+          className={`view-btn ${activeView === 'MAP' ? 'active' : ''}`}
+          onClick={() => handleSelectView('MAP')}
+          title="Search the world and acquire Sentinel-2 imagery"
+          aria-pressed={activeView === 'MAP'}
+        >
+          <MapIcon size={15} />
+          <span>Map</span>
+        </button>
+
+        <button
           id="view-btn-2d"
           className={`view-btn ${activeView === '2D' ? 'active' : ''}`}
           onClick={() => handleSelectView('2D')}
           title="2D Raster GIS Viewport (Hot-key: 1)"
           aria-pressed={activeView === '2D'}
         >
-          <span className="view-radio-dot" />
+          <Image size={15} />
           <span>2D Raster</span>
-          <span className="view-badge-meta">SOURCE</span>
         </button>
 
         <button
@@ -35,9 +49,8 @@ export const ViewSelector: React.FC = () => {
           title="3D Terrain Perspective Viewport (Hot-key: 2)"
           aria-pressed={activeView === '3D'}
         >
-          <span className="view-radio-dot" />
+          <Box size={15} />
           <span>3D Terrain</span>
-          <span className="view-badge-meta">MESH</span>
         </button>
       </div>
     </div>

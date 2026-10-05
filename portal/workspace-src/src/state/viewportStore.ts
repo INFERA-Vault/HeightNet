@@ -14,6 +14,7 @@ interface ViewportStore {
   viewport2D: Viewport2DState;
   setZoom2D: (zoom: number | ((prev: number) => number)) => void;
   setPan2D: (panX: number, panY: number) => void;
+  setRotation2D: (rotation: number) => void;
   zoomAtPoint2D: (zoom: number, panX: number, panY: number) => void;
   reset2DView: () => void;
   fit2DToView: () => void;
@@ -71,7 +72,7 @@ const initial2D: Viewport2DState = {
   opacity: 1.0,
   colormap: 'natural',
   invertColormap: false,
-  gridVisible: true,
+  gridVisible: false,
   crosshairVisible: true,
   measureMode: false,
   measurePoints: [],
@@ -91,12 +92,12 @@ const initial3D: Viewport3DState = {
   autoOrbit: initialAutoOrbit,
   cameraFov: 45,
   cameraSpeed: 1.0,
-  verticalExaggeration: 1.8,
+  verticalExaggeration: 1.0,
   materialMode: 'satellite',
   wireframeVisible: false,
   wireframeColor: '#38bdf8',
-  gridVisible: true,
-  waterVisible: true,
+  gridVisible: false,
+  waterVisible: false,
   waterElevation: 0.11,
   sunAzimuth: 315,
   sunAltitude: 45,
@@ -120,6 +121,11 @@ export const useViewportStore = create<ViewportStore>((set) => ({
   setPan2D: (panX, panY) =>
     set((state) => ({
       viewport2D: { ...state.viewport2D, panX, panY },
+    })),
+
+  setRotation2D: (rotation) =>
+    set((state) => ({
+      viewport2D: { ...state.viewport2D, rotation },
     })),
 
   zoomAtPoint2D: (zoom, panX, panY) =>
@@ -377,7 +383,7 @@ export const useViewportStore = create<ViewportStore>((set) => ({
     lon: 0,
     elevation: 0,
     slopeDegrees: undefined,
-    readoutSource: 'preview',
+    readoutSource: 'metadata',
   },
   setCursorReadout: (readout) =>
     set((state) => ({

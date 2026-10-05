@@ -3,6 +3,9 @@ import { Sliders } from 'lucide-react';
 import { TwoDInspector } from './TwoDInspector';
 import { ThreeDInspector } from './ThreeDInspector';
 import { useAppStore } from '../../state/appStore';
+import { MapInspector } from '../map/MapInspector';
+import { LivePipelinePanel } from '../pipeline/LivePipelinePanel';
+import { ValidationPanel } from './ValidationPanel';
 
 export const InspectorPanel: React.FC = () => {
   const { activeView, rightPanelWidth } = useAppStore();
@@ -16,12 +19,17 @@ export const InspectorPanel: React.FC = () => {
       <div className="inspector-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <Sliders size={13} style={{ color: 'var(--accent-light)' }} />
-          <span>INSPECTOR</span>
+          <span>{activeView === 'MAP' ? 'Build terrain' : activeView === '2D' ? 'Raster details' : 'Terrain controls'}</span>
         </div>
-        <span className="inspector-header-badge">{activeView} ACTIVE</span>
+        <span className="inspector-header-badge">{activeView === 'MAP' ? 'Map' : activeView === '2D' ? '2D raster' : '3D terrain'}</span>
       </div>
 
-      {activeView === '2D' ? <TwoDInspector /> : <ThreeDInspector />}
+      {/* Keep the upload controller mounted in every view so the compact
+          Upload button works from Map, 2D, and 3D without painting a card
+          over the workspace. */}
+      <LivePipelinePanel />
+      <ValidationPanel />
+      {activeView === 'MAP' ? <MapInspector /> : activeView === '2D' ? <TwoDInspector /> : <ThreeDInspector />}
     </aside>
   );
 };

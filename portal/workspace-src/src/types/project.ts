@@ -39,13 +39,16 @@ export interface ProjectData {
   has3DReady: boolean;
   liveViewerUrl: string | null;
   rawOutputPaths: {
+    input: string | null;
     relative: string | null;
     agl: string | null;
     dsm: string | null;
     confidence: string | null;
     uncertainty: string | null;
+    sceneRisk: string | null;
   };
   outputs: {
+    input: string | null;
     relative: string | null;
     agl: string | null;
     dsm: string | null;
@@ -53,6 +56,9 @@ export interface ProjectData {
     uncertainty: string | null;
     metadata: string | null;
     mesh: string | null;
+    material: string | null;
     texture: string | null;
+    meshMetadata: string | null;
+    sceneRisk: string | null;
   };
 }

@@ -1,20 +1,37 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import * as THREE from 'three';
 import { useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { useViewportStore } from '../../state/viewportStore';
-import { getTerrainHeight } from '../noise/terrainNoise';
+import { useWorkspaceStore } from '../../state/workspaceStore';
 
-export const CameraController: React.FC = () => {
-  const { camera, gl } = useThree();
+function readTerrainSurfaceY(scene: THREE.Scene, x: number, z: number): number | null {
+  const terrain = scene.getObjectByName('heightnet-generated-terrain');
+  if (!terrain) return null;
+
+  const raycaster = new THREE.Raycaster(
+    new THREE.Vector3(x, 10000, z),
+    new THREE.Vector3(0, -1, 0),
+  );
+  const hit = raycaster.intersectObject(terrain, true)[0];
+  return hit?.point.y ?? null;
+}
+
+interface CameraControllerProps {
+  paneId?: string;
+}
+
+export const CameraController: React.FC<CameraControllerProps> = ({ paneId = 'terrain' }) => {
+  const { camera, gl, scene } = useThree();
   const orbitRef = useRef<OrbitControlsImpl>(null);
+  const fittedTerrain = useRef<THREE.Object3D | null>(null);
+  const fitTarget = useRef<THREE.Vector3 | null>(null);
 
   const {
     cameraMode,
     cameraFov,
     cameraSpeed,
-    verticalExaggeration,
     autoOrbit,
   } = useViewportStore((state) => state.viewport3D);
 
@@ -22,6 +39,126 @@ export const CameraController: React.FC = () => {
   const setCamera3DReadout = useViewportStore((state) => state.setCamera3DReadout);
   const setCameraFov3D = useViewportStore((state) => state.setCameraFov3D);
   const setAutoOrbitPaused3D = useViewportStore((state) => state.setAutoOrbitPaused3D);
+  const syncCameras = useWorkspaceStore((state) => state.syncCameras);
+  const activePaneId = useWorkspaceStore((state) => state.activePaneId);
+  const syncStamp = useRef({ signature: '', time: 0 });
+  const applyingSync = useRef(false);
+
+  const broadcastCamera = useCallback(() => {
+    if (!syncCameras || applyingSync.current) return;
+    const target = orbitRef.current?.target;
+    const detail = {
+      sourceId: paneId,
+      position: [camera.position.x, camera.position.y, camera.position.z] as [number, number, number],
+      quaternion: [camera.quaternion.x, camera.quaternion.y, camera.quaternion.z, camera.quaternion.w] as [number, number, number, number],
+      target: target ? [target.x, target.y, target.z] as [number, number, number] : null,
+      fov: camera instanceof THREE.PerspectiveCamera ? camera.fov : 45,
+    };
+    const signature = `${detail.position.map((value) => value.toFixed(2)).join(',')}|${detail.quaternion.map((value) => value.toFixed(3)).join(',')}`;
+    const now = performance.now();
+    if (signature === syncStamp.current.signature && now - syncStamp.current.time < 80) return;
+    syncStamp.current = { signature, time: now };
+    window.dispatchEvent(new CustomEvent('heightnet:camera-sync', { detail }));
+  }, [camera, paneId, syncCameras]);
+
+  useEffect(() => {
+    const handleCameraSync = (event: Event) => {
+      const detail = (event as CustomEvent).detail as {
+        sourceId?: string;
+        position?: [number, number, number];
+        quaternion?: [number, number, number, number];
+        target?: [number, number, number] | null;
+        fov?: number;
+      };
+      if (!syncCameras || detail.sourceId === paneId || !detail.position || !detail.quaternion) return;
+      applyingSync.current = true;
+      camera.position.fromArray(detail.position);
+      camera.quaternion.fromArray(detail.quaternion);
+      if (camera instanceof THREE.PerspectiveCamera && detail.fov) {
+        camera.fov = detail.fov;
+        camera.updateProjectionMatrix();
+      }
+      if (orbitRef.current && detail.target) {
+        orbitRef.current.target.fromArray(detail.target);
+        orbitRef.current.update();
+      }
+      window.setTimeout(() => { applyingSync.current = false; }, 0);
+    };
+
+    window.addEventListener('heightnet:camera-sync', handleCameraSync);
+    return () => window.removeEventListener('heightnet:camera-sync', handleCameraSync);
+  }, [camera, paneId, syncCameras]);
+
+  const fitCameraToTerrain = (force = false) => {
+    const terrain = scene.getObjectByName('heightnet-generated-terrain');
+    if (!terrain || !terrain.visible) return false;
+    if (!force && fittedTerrain.current === terrain) {
+      if (orbitRef.current && fitTarget.current) {
+        orbitRef.current.target.copy(fitTarget.current);
+        orbitRef.current.update();
+      }
+      return false;
+    }
+
+    let meshCount = 0;
+    terrain.traverse((node) => {
+      if ('isMesh' in node && (node as THREE.Mesh).isMesh) meshCount += 1;
+    });
+    if (!meshCount) return false;
+
+    terrain.updateWorldMatrix(true, true);
+    const bounds = new THREE.Box3().setFromObject(terrain);
+    if (bounds.isEmpty()) return false;
+
+    const center = bounds.getCenter(new THREE.Vector3());
+    const size = bounds.getSize(new THREE.Vector3());
+    const radius = Math.max(size.x, size.y, size.z, 20);
+    const distance = Math.max(radius * 1.45, 90);
+    const target = center.clone();
+    target.y += Math.max(size.y * 0.08, 2);
+    fitTarget.current = target.clone();
+
+    // Start walkthrough at the terrain surface instead of leaving the user
+    // inside the default orbit camera. The first-person modes should feel
+    // like a deliberate entry point into the generated scene.
+    if (cameraMode === 'walkthrough') {
+      const groundY = readTerrainSurfaceY(scene, center.x, center.z) ?? bounds.min.y;
+      const entryDistance = Math.max(size.z * 0.32, 28);
+      camera.position.set(center.x, groundY + 3.2, center.z + entryDistance);
+      camera.lookAt(center.x, groundY + 3.2, center.z);
+      camera.near = 0.05;
+      camera.far = Math.max(radius * 20, 2000);
+      camera.updateProjectionMatrix();
+      mouseLook.current.pitch = 0;
+      // The camera starts just beyond the near edge of the terrain and should
+      // face back toward its centre. In this coordinate system yaw 0 looks
+      // along -Z.
+      mouseLook.current.yaw = 0;
+      fittedTerrain.current = terrain;
+      return true;
+    }
+
+    camera.position.set(
+      center.x + distance * 0.78,
+      center.y + distance * 0.58,
+      center.z + distance * 0.78,
+    );
+    camera.lookAt(target);
+    camera.near = Math.max(radius / 1000, 0.05);
+    camera.far = Math.max(radius * 20, 2000);
+    camera.updateProjectionMatrix();
+
+    mouseLook.current.pitch = -0.32;
+    mouseLook.current.yaw = 0.72;
+    if (orbitRef.current) {
+      orbitRef.current.target.copy(target);
+      orbitRef.current.minDistance = Math.max(radius * 0.08, 4);
+      orbitRef.current.maxDistance = Math.max(radius * 8, 800);
+      orbitRef.current.update();
+    }
+    fittedTerrain.current = terrain;
+    return true;
+  };
 
   // Keyboard keys state for Flythrough and Walkthrough
   const keys = useRef<{
@@ -75,22 +212,24 @@ export const CameraController: React.FC = () => {
   // Handle Camera Reset
   useEffect(() => {
     if (resetTrigger > 0) {
-      camera.position.set(130, 95, 150);
-      camera.lookAt(0, 15, 0);
-      mouseLook.current.pitch = -0.32;
-      mouseLook.current.yaw = 0.72;
-      if (orbitRef.current) {
-        orbitRef.current.target.set(0, 15, 0);
-        orbitRef.current.update();
-      }
+      fittedTerrain.current = null;
+      fitCameraToTerrain(true);
     }
-  }, [resetTrigger, camera]);
+  }, [resetTrigger, camera, scene]);
+
+  // The mesh is loaded asynchronously. A reset can happen before React has
+  // mounted the primitive, so also fit on the first frame where the real OBJ
+  // is actually present in the scene.
+  useEffect(() => {
+    fittedTerrain.current = null;
+    fitTarget.current = null;
+  }, [cameraMode]);
 
   // Key event listeners for navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ignore if typing in text input
-      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
+      if (activePaneId !== paneId || ['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
         return;
       }
 
@@ -178,11 +317,13 @@ export const CameraController: React.FC = () => {
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleBlur);
     };
-  }, []);
+  }, [activePaneId, paneId]);
 
   // Mouse look around for Flythrough & Walkthrough
   useEffect(() => {
     const dom = gl.domElement;
+    dom.tabIndex = 0;
+    const focusCanvas = () => dom.focus();
 
     const onMouseDown = (e: MouseEvent) => {
       if (cameraMode === 'orbit' || cameraMode === 'auto-orbit') return;
@@ -213,16 +354,18 @@ export const CameraController: React.FC = () => {
       mouseLook.current.isMouseDown = false;
     };
 
+    dom.addEventListener('pointerdown', focusCanvas);
     dom.addEventListener('mousedown', onMouseDown);
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
 
     return () => {
+      dom.removeEventListener('pointerdown', focusCanvas);
       dom.removeEventListener('mousedown', onMouseDown);
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
     };
-  }, [gl, cameraMode]);
+  }, [gl, cameraMode, broadcastCamera]);
 
   // Auto Orbit: Gracefully suspend auto-rotation when user manually clicks & drags the camera
   useEffect(() => {
@@ -295,13 +438,8 @@ export const CameraController: React.FC = () => {
         camera.position.addScaledVector(forward, dollyDir * dollySpeed);
 
         // Clamp to avoid subterranean clipping
-        const size = 200;
-        const u = (camera.position.x + size / 2) / size;
-        const v = (camera.position.z + size / 2) / size;
-        const clampedU = Math.max(0, Math.min(1, u));
-        const clampedV = Math.max(0, Math.min(1, v));
-        const terrainHeight = getTerrainHeight(clampedU, clampedV) * 45 * verticalExaggeration;
-        if (camera.position.y < terrainHeight + 1.0) {
+        const terrainHeight = readTerrainSurfaceY(scene, camera.position.x, camera.position.z);
+        if (terrainHeight !== null && camera.position.y < terrainHeight + 1.0) {
           camera.position.y = terrainHeight + 1.0;
         }
       } else if (cameraMode === 'walkthrough') {
@@ -314,13 +452,8 @@ export const CameraController: React.FC = () => {
         camera.position.addScaledVector(forward, stepDir * stepSpeed);
 
         // Maintain eye-level elevation
-        const size = 200;
-        const u = (camera.position.x + size / 2) / size;
-        const v = (camera.position.z + size / 2) / size;
-        const clampedU = Math.max(0, Math.min(1, u));
-        const clampedV = Math.max(0, Math.min(1, v));
-        const terrainHeight = getTerrainHeight(clampedU, clampedV) * 45 * verticalExaggeration;
-        camera.position.y = terrainHeight + 3.2;
+        const terrainHeight = readTerrainSurfaceY(scene, camera.position.x, camera.position.z);
+        if (terrainHeight !== null) camera.position.y = terrainHeight + 3.2;
       }
     };
 
@@ -328,10 +461,12 @@ export const CameraController: React.FC = () => {
     return () => {
       dom.removeEventListener('wheel', onWheel);
     };
-  }, [gl, camera, cameraMode, cameraSpeed, verticalExaggeration, setCameraFov3D]);
+  }, [gl, camera, cameraMode, cameraSpeed, scene, setCameraFov3D]);
 
   // Frame update loop
   useFrame((_, delta) => {
+    fitCameraToTerrain();
+
     // 1. Calculate FPS
     fpsStats.current.frames++;
     const now = performance.now();
@@ -415,18 +550,15 @@ export const CameraController: React.FC = () => {
       camera.position.add(moveDelta);
 
       // Walkthrough ground collision clamping
-      const size = 200;
-      const u = (camera.position.x + size / 2) / size;
-      const v = (camera.position.z + size / 2) / size;
-      const clampedU = Math.max(0, Math.min(1, u));
-      const clampedV = Math.max(0, Math.min(1, v));
-      const terrainHeight = getTerrainHeight(clampedU, clampedV) * 45 * verticalExaggeration;
+      const terrainHeight = readTerrainSurfaceY(scene, camera.position.x, camera.position.z);
 
       if (cameraMode === 'walkthrough') {
         // Keep camera at ground height + 3.0 units eye level
-        const targetY = terrainHeight + 3.2;
-        camera.position.y += (targetY - camera.position.y) * 0.15;
-      } else {
+        if (terrainHeight !== null) {
+          const targetY = terrainHeight + 3.2;
+          camera.position.y += (targetY - camera.position.y) * 0.15;
+        }
+      } else if (terrainHeight !== null) {
         // Prevent flythrough from sinking into subterranean abyss
         if (camera.position.y < terrainHeight + 1.0) {
           camera.position.y = terrainHeight + 1.0;
@@ -444,6 +576,7 @@ export const CameraController: React.FC = () => {
       yaw: Math.round((camera.rotation.y * 180) / Math.PI),
       fps: fpsStats.current.fps || 60,
     });
+    broadcastCamera();
   });
 
   if (cameraMode === 'orbit' || cameraMode === 'auto-orbit') {
@@ -464,6 +597,7 @@ export const CameraController: React.FC = () => {
         maxDistance={480}
         minDistance={8}
         maxPolarAngle={Math.PI / 2.05} // don't go below ground
+        onChange={broadcastCamera}
       />
     );
   }

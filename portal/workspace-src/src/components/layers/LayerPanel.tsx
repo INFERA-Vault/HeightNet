@@ -3,11 +3,14 @@ import { Eye, EyeOff, Plus } from 'lucide-react';
 import { LayerItem } from './LayerItem';
 import { useLayerStore } from '../../state/layerStore';
 import { useAppStore } from '../../state/appStore';
+import { useProjectStore } from '../../state/projectStore';
 
 export const LayerPanel: React.FC = () => {
   const { layers, showAllLayers, hideAllLayers, addLayer } = useLayerStore();
   const activeView = useAppStore((state) => state.activeView);
   const notify = useAppStore((state) => state.notify);
+  const project = useProjectStore((state) => state.project);
+  const hasData = Boolean(project.sourceRasterUrl || project.has3DReady || project.outputs.dsm);
 
   // Filter layers by active view
   const visibleLayers = layers.filter(
@@ -65,7 +68,14 @@ export const LayerPanel: React.FC = () => {
       </div>
 
       <div className="layers-list" role="list">
-        {visibleLayers.map((layer) => (
+        {activeView === 'MAP' ? (
+          <div className="layers-empty-state">Map mode uses the acquisition controls on the right.</div>
+        ) : !hasData ? (
+          <div className="layers-empty-state">
+            <strong>No data loaded</strong>
+            <span>Layers will appear after an upload or terrain run.</span>
+          </div>
+        ) : visibleLayers.map((layer) => (
           <LayerItem key={layer.id} layer={layer} />
         ))}
       </div>

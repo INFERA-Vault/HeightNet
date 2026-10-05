@@ -14,10 +14,10 @@ image upload
   -> textured OBJ terrain
 ```
 
-Before a job is run, the 3D screen shows a visual fallback so the controls do
-not look empty. It is not real geographic output. After a job finishes, the
-workspace opens the generated OBJ/MTL/texture in the repository's standalone
-Three.js viewer.
+The workspace does not invent a mountain or raster when no data is loaded. It
+shows a clear empty state until the user uploads an image or runs a map job.
+After a job finishes, the workspace loads the generated OBJ/MTL/texture as
+real output in its 3D view.
 
 ## Start it
 
@@ -37,8 +37,13 @@ Then open the main app:
 http://127.0.0.1:8000/
 ```
 
-Choose a PNG, JPG, or GeoTIFF and click **Run model**. The same API is also
-used by the classic portal at `/classic/` and the Cesium globe at `/globe/`.
+Use **Map Acquisition** to search for a place, select a small area, download a
+Sentinel-2 RGB GeoTIFF, and run the pipeline. You can also choose **Upload**
+to run the pipeline directly on a PNG, JPG, or GeoTIFF.
+
+The old `/globe/` URL is kept only as a compatibility redirect into Map
+Acquisition. The old `/classic/` portal remains available as a fallback, but
+it is not a second main product.
 
 ## Important boundary
 

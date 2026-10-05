@@ -7,9 +7,11 @@ import {
   Sparkles,
   ExternalLink,
   RotateCw,
+  Wrench,
 } from 'lucide-react';
 import { useViewportStore } from '../../state/viewportStore';
 import { useAppStore } from '../../state/appStore';
+import { useUtilitiesStore } from '../../state/utilitiesStore';
 
 export const ToolsMenu: React.FC = () => {
   const [open, setOpen] = useState(false);
@@ -17,6 +19,7 @@ export const ToolsMenu: React.FC = () => {
   const activeView = useAppStore((state) => state.activeView);
   const notify = useAppStore((state) => state.notify);
   const openDedicated3DViewer = useAppStore((state) => state.openDedicated3DViewer);
+  const toggleUtilities = useUtilitiesStore((state) => state.toggle);
   const {
     toggleMeasureMode2D,
     toggleGrid2D,
@@ -70,7 +73,9 @@ export const ToolsMenu: React.FC = () => {
             role="menuitem"
             onClick={() => {
               setOpen(false);
-              if (activeView === '2D') {
+              if (activeView === 'MAP') {
+                notify('Grid controls are available in the raster and terrain views', 'info');
+              } else if (activeView === '2D') {
                 toggleGrid2D();
               } else {
                 toggleGrid3D();
@@ -83,6 +88,20 @@ export const ToolsMenu: React.FC = () => {
               <span>Toggle Grid</span>
             </div>
             <span className="dw-menu-shortcut">G</span>
+          </button>
+
+          <button
+            className="dw-menu-item"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              toggleUtilities();
+            }}
+          >
+            <div className="dw-menu-item-left">
+              <Wrench size={13} />
+              <span>Open Utilities</span>
+            </div>
           </button>
 
           <div className="dw-menu-separator" />

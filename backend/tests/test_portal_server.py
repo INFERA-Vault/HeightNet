@@ -5,6 +5,7 @@ from pathlib import Path
 import shutil
 import threading
 import time
+import zipfile
 from urllib.request import Request, urlopen
 from urllib.parse import quote
 
@@ -88,7 +89,8 @@ def test_portal_serves_health_and_viewer() -> None:
         with urlopen(f"{base_url}/globe/", timeout=5) as response:
             globe_html = response.read().decode("utf-8")
         assert response.status == 200
-        assert "Choose a place and build its terrain" in globe_html
+        assert "/workspace/assets/" in globe_html
+        assert "HeightNet" in globe_html
     finally:
         server.shutdown()
         server.server_close()
@@ -118,7 +120,11 @@ def test_imagery_compatibility_route_returns_downloadable_artifact(tmp_path, mon
         shutil.copyfile(source, output_path)
         return output_path
 
+    def fake_visual(scene, output_path, bbox):
+        raise server_module.AcquisitionError("visual asset not available in test")
+
     monkeypatch.setattr(server_module, "download_scene_rgb", fake_download)
+    monkeypatch.setattr(server_module, "download_scene_visual", fake_visual)
 
     server = create_server(port=0)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -178,6 +184,53 @@ def test_upload_route_stores_and_inspects_raster(tmp_path, monkeypatch) -> None:
         thread.join(timeout=5)
 
 
+def test_reference_upload_route_accepts_raster_and_gcp_csv(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(server_module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(server_module, "JOBS_ROOT", tmp_path / "jobs")
+    reference = tmp_path / "reference.tif"
+    _write_test_raster(reference, np.ones((3, 3), dtype=float))
+
+    server = create_server(port=0)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base_url = f"http://127.0.0.1:{server.server_address[1]}"
+        raster_request = Request(
+            f"{base_url}/api/upload-reference",
+            data=reference.read_bytes(),
+            headers={
+                "Content-Type": "application/octet-stream",
+                "Content-Length": str(reference.stat().st_size),
+                "X-Filename": "reference.tif",
+            },
+            method="POST",
+        )
+        with urlopen(raster_request, timeout=10) as response:
+            raster_payload = json.loads(response.read().decode("utf-8"))
+        assert raster_payload["reference"]["kind"] == "reference_raster"
+        assert (tmp_path / raster_payload["path"]).is_file()
+
+        gcp_bytes = b"x,y,reference_m\n500005,3999995,120.0\n"
+        gcp_request = Request(
+            f"{base_url}/api/upload-reference",
+            data=gcp_bytes,
+            headers={
+                "Content-Type": "text/csv",
+                "Content-Length": str(len(gcp_bytes)),
+                "X-Filename": "survey.csv",
+            },
+            method="POST",
+        )
+        with urlopen(gcp_request, timeout=10) as response:
+            gcp_payload = json.loads(response.read().decode("utf-8"))
+        assert gcp_payload["reference"]["kind"] == "gcp_csv"
+        assert (tmp_path / gcp_payload["path"]).read_text(encoding="utf-8") == gcp_bytes.decode()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
 def test_raster_inspection_and_reference_evaluation_routes(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(server_module, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(server_module, "JOBS_ROOT", tmp_path / "jobs")
@@ -198,12 +251,46 @@ def test_raster_inspection_and_reference_evaluation_routes(tmp_path, monkeypatch
         assert stats["shape"] == [3, 3]
         assert stats["median"] == 22.0
 
+        preview_url = f"{base_url}/api/raster-preview?path={quote(prediction_path)}&palette=elevation"
+        with urlopen(preview_url, timeout=5) as response:
+            preview = response.read()
+            assert response.headers["Content-Type"] == "image/png"
+        assert preview.startswith(b"\x89PNG")
+
         inspect_url = f"{base_url}/api/inspect?path={quote(prediction_path)}&x=1&y=1"
         with urlopen(inspect_url, timeout=5) as response:
             point = json.loads(response.read().decode("utf-8"))
         assert point["value_m"] == 22.0
         assert point["slope_degrees"] is not None
         assert point["crs"] == "EPSG:32643"
+
+        profile_url = (
+            f"{base_url}/api/profile?path={quote(prediction_path)}"
+            "&start_x=0&start_y=0&end_x=2&end_y=2&samples=5"
+        )
+        with urlopen(profile_url, timeout=5) as response:
+            profile = json.loads(response.read().decode("utf-8"))
+        assert profile["distance_m"] > 0
+        assert len(profile["samples"]) == 5
+        assert profile["min_m"] == 10.0
+        assert profile["max_m"] == 34.0
+
+        export_source = tmp_path / "jobs" / "result.tif"
+        export_source.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(prediction, export_source)
+        export_request = Request(
+            f"{base_url}/api/export-bundle",
+            data=json.dumps({"files": [{"path": "jobs/result.tif", "name": "estimated-dsm.tif"}]}).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urlopen(export_request, timeout=5) as response:
+            bundle = json.loads(response.read().decode("utf-8"))
+        assert bundle["files"] == ["estimated-dsm.tif"]
+        bundle_path = tmp_path / bundle["path"]
+        assert bundle_path.is_file()
+        with zipfile.ZipFile(bundle_path) as archive:
+            assert archive.namelist() == ["estimated-dsm.tif"]
 
         request = Request(
             f"{base_url}/api/evaluate",
@@ -229,6 +316,78 @@ def test_raster_inspection_and_reference_evaluation_routes(tmp_path, monkeypatch
         assert job["status"] == "complete"
         assert job["result"]["raster_metrics"]["mae_m"] == 1.0
         assert (tmp_path / job["result"]["report_path"]).is_file()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_reference_availability_route_reports_source_roles(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(server_module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(server_module, "JOBS_ROOT", tmp_path / "jobs")
+    gcp_dir = tmp_path / "data" / "gcps"
+    gcp_dir.mkdir(parents=True)
+    (gcp_dir / "survey.csv").write_text("x,y,reference_m\n1,2,100\n", encoding="utf-8")
+
+    server = create_server(port=0)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base_url = f"http://127.0.0.1:{server.server_address[1]}"
+        url = (
+            f"{base_url}/api/reference-availability"
+            "?bbox=77.1,30.1,77.2,30.2&remote=0"
+        )
+        with urlopen(url, timeout=5) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+
+        assert payload["bbox"] == [77.1, 30.1, 77.2, 30.2]
+        assert payload["summary"]["gcp_upload_supported"] is True
+        assert any(source["role"] == "coarse_ground" for source in payload["sources"])
+        assert any(source["role"] == "calibration_reference" for source in payload["sources"])
+        assert payload["rules"]["reference_not_used_as_prediction_input_by_default"] is True
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_open_qgis_route_writes_a_layered_project(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(server_module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(server_module, "JOBS_ROOT", tmp_path / "jobs")
+    rgb = tmp_path / "jobs" / "rgb.tif"
+    dsm = tmp_path / "jobs" / "dsm.tif"
+    _write_test_raster(rgb, np.ones((3, 3), dtype=float))
+    _write_test_raster(dsm, np.full((3, 3), 12.0, dtype=float))
+    monkeypatch.setattr(server_module, "open_qgis_project", lambda path: (False, "QGIS project created."))
+
+    server = create_server(port=0)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base_url = f"http://127.0.0.1:{server.server_address[1]}"
+        request = Request(
+            f"{base_url}/api/open-qgis",
+            data=json.dumps(
+                {
+                    "layers": [
+                        {"path": "jobs/rgb.tif", "label": "RGB input", "visible": True, "opacity": 1},
+                        {"path": "jobs/dsm.tif", "label": "Estimated DSM", "visible": False, "opacity": 0.55},
+                    ]
+                }
+            ).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urlopen(request, timeout=5) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        assert payload["qgis_launched"] is False
+        assert payload["project_path"].endswith("heightnet_analysis.qgs")
+        project = tmp_path / payload["project_path"]
+        text = project.read_text(encoding="utf-8")
+        assert "RGB input" in text
+        assert "Estimated DSM" in text
+        assert "dsm.tif" in text
     finally:
         server.shutdown()
         server.server_close()

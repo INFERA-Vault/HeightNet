@@ -1,10 +1,32 @@
 /* Small, dependency-light map behaviour for the HeightNet portal. */
 (function () {
   const map = L.map('map', { zoomControl: true }).setView([22.5, 79.0], 5);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19,
+    attribution: '&copy; Esri World Imagery'
+  });
+  const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '&copy; OpenStreetMap contributors'
-  }).addTo(map);
+  });
+  const terrainLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19,
+    attribution: '&copy; Esri World Topographic Map'
+  });
+  const placeLabelsLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19,
+    opacity: 0.95,
+    attribution: '&copy; Esri place labels'
+  });
+  satelliteLayer.addTo(map);
+  placeLabelsLayer.addTo(map);
+  L.control.layers({
+    'Satellite imagery': satelliteLayer,
+    'Street map': streetLayer,
+    'Terrain map': terrainLayer,
+  }, {
+    'Place labels': placeLabelsLayer,
+  }, { collapsed: false, position: 'topright' }).addTo(map);
 
   let selectionMode = false;
   let firstCorner = null;

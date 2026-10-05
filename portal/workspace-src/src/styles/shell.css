@@ -13,34 +13,34 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 28px;
-  min-height: 28px;
+  height: 42px;
+  min-height: 42px;
   background-color: var(--bg-panel-header);
   border-bottom: 1px solid var(--border-subtle);
-  padding: 0 8px;
+  padding: 0 14px;
   z-index: 100;
 }
 
 .top-bar-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 18px;
 }
 
 .app-branding {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   font-weight: 600;
-  font-size: 11px;
+  font-size: 13px;
   letter-spacing: 0.02em;
   color: var(--text-primary);
   user-select: none;
 }
 
 .app-logo-icon {
-  width: 14px;
-  height: 14px;
+  width: 18px;
+  height: 18px;
   color: var(--accent-light);
 }
 
@@ -51,13 +51,13 @@
 }
 
 .menu-trigger-btn {
-  padding: 2px 7px;
-  border-radius: var(--radius-xs);
+  padding: 4px 9px;
+  border-radius: var(--radius-sm);
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 400;
   transition: all 80ms;
-  height: 22px;
+  height: 30px;
 }
 
 .menu-trigger-btn:hover,
@@ -89,7 +89,7 @@
 .top-bar-right {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   height: 100%;
 }
 
@@ -97,13 +97,13 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 20px;
-  padding: 2px 8px;
+  height: 30px;
+  padding: 4px 10px;
   border: 1px solid rgba(110, 231, 183, 0.4);
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-sm);
   background: rgba(16, 185, 129, 0.14);
   color: #a7f3d0;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .upload-trigger:hover {
@@ -116,13 +116,13 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 20px;
-  padding: 2px 8px;
+  height: 30px;
+  padding: 4px 10px;
   border: 1px solid rgba(96, 165, 250, 0.4);
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-sm);
   background: rgba(59, 130, 246, 0.14);
   color: #bfdbfe;
-  font-size: 10px;
+  font-size: 11px;
   text-decoration: none;
 }
 
@@ -133,16 +133,16 @@
 }
 
 .cmd-k-trigger {
-  padding: 2px 7px;
+  padding: 4px 9px;
   background-color: var(--bg-subtle);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-sm);
   color: var(--text-secondary);
-  font-size: 10px;
+  font-size: 11px;
   display: flex;
   align-items: center;
   gap: 5px;
-  height: 20px;
+  height: 30px;
 }
 
 .cmd-k-trigger:hover {
@@ -168,7 +168,7 @@
   overflow: hidden;
   position: relative;
   width: 100%;
-  height: calc(100vh - 28px);
+  height: calc(100vh - 42px);
 }
 
 /* Splitter Bar */

@@ -21,6 +21,9 @@ data/outputs/*
 !data/outputs/README.md
 data/references/*
 !data/references/README.md
+data/real_aoi_*/
+data/test_runs/
+GCPTEST.CSV
 reports/*.log
 reports/*_terrain.obj
 reports/*_terrain.mtl

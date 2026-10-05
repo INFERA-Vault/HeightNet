@@ -16,7 +16,7 @@ test = [
 remote = [
     "pystac>=1.15",
     "planetary-computer>=1.0",
-    "rioxarray>=0.23",
+    "rioxarray>=0.19",
     "pyproj>=3.7",
 ]
 preview = [
@@ -25,10 +25,18 @@ preview = [
 model = [
     "torch>=2.14",
     "torchvision>=0.29",
-    "transformers>=5.16",
+    "transformers>=4.57,<5",
     "accelerate>=1.14",
     "pillow>=10",
 ]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["backend*"]
+exclude = ["data*", "portal*", "reports*", "viewer*", "configs*"]
 
 [tool.pytest.ini_options]
 testpaths = ["backend/tests"]

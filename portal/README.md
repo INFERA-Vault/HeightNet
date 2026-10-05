@@ -29,19 +29,18 @@ checkpoint and the optional calibration files described in the main README.
 - The existing standalone terrain viewer remains in `viewer/`.
 
 The API has two acquisition paths: `/api/scenes` plus `/api/download` is the
-main two-step flow, while `/api/imagery` is a compatibility route for the
-standalone globe's one-click imagery button. Both paths use the same real
-Planetary Computer Sentinel-2 downloader.
+main two-step flow, while `/api/imagery` is a compatibility route for older
+clients. Both paths use the same real Planetary Computer Sentinel-2 downloader.
 
 The React workspace source lives in `portal/workspace-src/`. Build it with
 `npm install` and `npm run build` from that directory. The root URL and
-`/workspace/` both serve the built workspace. Its procedural terrain is only a
-pre-run preview; after a successful job it opens the real OBJ/MTL/texture
+`/workspace/` both serve the built workspace. It shows an honest empty state
+until a real image or map job is loaded, then opens the real OBJ/MTL/texture
 output from the Python pipeline.
 
-The previous simple interface is still available at `/classic/`. The globe is
-available at `/globe/`, and the standalone mesh viewer is available at
-`/viewer/`.
+The previous simple interface is still available at `/classic/`. The old
+`/globe/` URL redirects to Map Acquisition inside the main workspace. The
+standalone mesh viewer remains available at `/viewer/`.
 
 The model does not make accuracy claims without independent LiDAR, reference
 DSM, or GCP validation.

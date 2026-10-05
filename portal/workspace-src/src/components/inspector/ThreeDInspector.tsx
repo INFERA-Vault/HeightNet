@@ -9,10 +9,15 @@ import {
   RotateCw,
   Play,
   Pause,
+  Download,
+  ExternalLink,
 } from 'lucide-react';
 import { useViewportStore } from '../../state/viewportStore';
 import { useLayerStore } from '../../state/layerStore';
 import type { CameraMode, TerrainMaterialMode } from '../../types/viewport';
+import { useProjectStore } from '../../state/projectStore';
+import { useAppStore } from '../../state/appStore';
+import { API_BASE, openInQgis } from '../../integration/api';
 
 export const ThreeDInspector: React.FC = () => {
   const {
@@ -29,7 +34,6 @@ export const ThreeDInspector: React.FC = () => {
     setMaterialMode3D,
     toggleWireframe3D,
     toggleGrid3D,
-    toggleWater3D,
     setSunAzimuth3D,
     setSunAltitude3D,
     setMeshResolution3D,
@@ -37,6 +41,11 @@ export const ThreeDInspector: React.FC = () => {
   } = useViewportStore();
 
   const { layers, selectedLayerId, setLayerOpacity, toggleLayerVisibility } = useLayerStore();
+  const hasGeneratedMesh = useProjectStore((state) => state.project.has3DReady);
+  const outputs = useProjectStore((state) => state.project.outputs);
+  const rawOutputPaths = useProjectStore((state) => state.project.rawOutputPaths);
+  const setActiveView = useAppStore((state) => state.setActiveView);
+  const notify = useAppStore((state) => state.notify);
   const selectedLayer = layers.find((l) => l.id === selectedLayerId);
   const terrainLayer = layers.find((l) => l.id === 'layer-terrain-mesh');
 
@@ -46,6 +55,45 @@ export const ThreeDInspector: React.FC = () => {
   const [openScene, setOpenScene] = useState(true);
   const [openOverlays, setOpenOverlays] = useState(true);
   const [openLayer, setOpenLayer] = useState(true);
+  const [openingQgis, setOpeningQgis] = useState(false);
+  const [qgisProjectUrl, setQgisProjectUrl] = useState<string | null>(null);
+
+  const openCurrentResultInQgis = async () => {
+    const candidates = [
+      { path: rawOutputPaths.input, label: 'RGB input', visible: true, opacity: 1 },
+      { path: rawOutputPaths.dsm, label: 'Estimated DSM', visible: true, opacity: 0.55 },
+      { path: rawOutputPaths.agl, label: 'Predicted AGL', visible: false, opacity: 0.75 },
+      { path: rawOutputPaths.relative, label: 'Relative depth', visible: false, opacity: 0.75 },
+      { path: rawOutputPaths.confidence, label: 'Calibration confidence', visible: false, opacity: 0.7 },
+      { path: rawOutputPaths.uncertainty, label: 'Calibration uncertainty', visible: false, opacity: 0.7 },
+      { path: rawOutputPaths.sceneRisk, label: 'Scene risk flags', visible: false, opacity: 0.65 },
+    ].filter((layer): layer is { path: string; label: string; visible: boolean; opacity: number } => Boolean(layer.path));
+    if (!candidates.length) return;
+    setOpeningQgis(true);
+    try {
+      const opened = await openInQgis(candidates);
+      setQgisProjectUrl(opened.project_url);
+      notify(opened.qgis_launched ? 'QGIS opened with the result layers' : 'QGIS project created. Open it from the download link.', opened.qgis_launched ? 'success' : 'info');
+    } catch (error) {
+      notify(error instanceof Error ? error.message : 'Could not create the QGIS project', 'warning');
+    } finally {
+      setOpeningQgis(false);
+    }
+  };
+
+  if (!hasGeneratedMesh) {
+    return (
+      <div className="inspector-empty-state">
+        <strong>No 3D terrain loaded</strong>
+        <span>Run the HeightNet pipeline first. Camera and terrain controls will appear with the real mesh.</span>
+        <button onClick={() => setActiveView('MAP')}>Open map</button>
+        <button onClick={() => {
+          setActiveView('2D');
+          window.setTimeout(() => window.dispatchEvent(new CustomEvent('heightnet:open-upload')), 0);
+        }}>Upload image</button>
+      </div>
+    );
+  }
 
   const cameraModes: { id: CameraMode; label: string; icon: React.ReactNode; tooltip: string }[] = [
     { id: 'orbit', label: 'Orbit', icon: <Orbit size={11} />, tooltip: 'Manual turntable orbit' },
@@ -63,6 +111,29 @@ export const ThreeDInspector: React.FC = () => {
 
   return (
     <div className="inspector-content">
+      <div className="rollout-section">
+        <div className="rollout-header">
+          <div className="rollout-title"><Download size={12} /><span>Export results</span></div>
+        </div>
+        <div className="rollout-body export-links">
+          <button className="map-qgis-button" onClick={() => void openCurrentResultInQgis()} disabled={openingQgis}>
+            <ExternalLink size={11} /> {openingQgis ? 'Preparing QGIS project...' : 'Open all layers in QGIS'}
+          </button>
+          {qgisProjectUrl ? <a className="map-qgis-download" href={`${API_BASE}${qgisProjectUrl}`} download>Download QGIS project file</a> : null}
+          {([
+            ['dsm', 'DSM GeoTIFF'],
+            ['agl', 'AGL GeoTIFF'],
+            ['relative', 'Relative depth'],
+            ['confidence', 'Confidence map'],
+            ['mesh', 'Terrain OBJ'],
+          ] as const).map(([key, label]) => outputs[key] ? (
+            <a key={key} href={outputs[key] ?? '#'} download className="export-link">
+              <Download size={11} /> {label}
+            </a>
+          ) : null)}
+        </div>
+      </div>
+
       {/* 1. CAMERA SYSTEM ROLLOUT */}
       <div className="rollout-section">
         <div className="rollout-header" onClick={() => setOpenCamera(!openCamera)}>
@@ -383,13 +454,6 @@ export const ThreeDInspector: React.FC = () => {
                 onClick={toggleGrid3D}
               >
                 <span>Datum Grid</span>
-              </button>
-
-              <button
-                className={`desktop-action-btn ${viewport3D.waterVisible ? 'active' : ''}`}
-                onClick={toggleWater3D}
-              >
-                <span>Hydrology</span>
               </button>
 
               <button

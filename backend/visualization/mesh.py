@@ -44,10 +44,11 @@ def _read_visual_rgb(path: str | Path) -> np.ndarray:
         high = 255.0
     else:
         # Sentinel-2 surface-reflectance DNs are commonly stored on a 0-10000
-        # scale. A 3000 DN display ceiling keeps vegetation and bright ground
-        # readable without independently recolouring each band.
+        # scale. Use a fixed display ceiling instead of the scene maximum.
+        # Clouds and snow can be much brighter than ordinary land; using the
+        # maximum would squash most of the terrain into black pixels.
         low = min(1000.0, float(np.percentile(valid, 2)))
-        high = max(3000.0, maximum)
+        high = 3000.0
     scaled = np.clip((bands.astype(np.float32) - low) / (high - low), 0.0, 1.0)
     return np.moveaxis(np.ma.filled(scaled, 0.0) * 255.0, 0, -1).astype(np.uint8)
 
@@ -118,6 +119,7 @@ def export_obj_mesh(
     sampled = elevation[np.ix_(rows, cols)]
     sampled = np.nan_to_num(sampled, nan=float(np.nanmedian(elevation[valid])))
     base_elevation = float(np.nanmin(elevation[valid]))
+    height_range = float(np.nanmax(elevation[valid]) - base_elevation)
 
     row_grid, col_grid = np.meshgrid(rows, cols, indexing="ij")
     x = (
@@ -133,6 +135,19 @@ def export_obj_mesh(
     x = x - float(np.nanmin(x))
     y = y - float(np.nanmin(y))
     z = (sampled - base_elevation) * vertical_exaggeration
+
+    # A non-georeferenced raster has no metre-based horizontal or vertical
+    # scale. Its relative height signal is still useful for a 3D preview, but
+    # at a literal 1:1 display scale it looks almost flat. Store a suggested
+    # visual multiplier for the browser viewer instead of pretending the
+    # relative values are metres.
+    metric_scale = elevation_crs is not None
+    horizontal_extent = max(float(np.ptp(x)), float(np.ptp(y)), 1.0)
+    recommended_vertical_exaggeration = 1.0
+    if not metric_scale and height_range > 1e-6:
+        recommended_vertical_exaggeration = float(
+            np.clip(0.12 * horizontal_extent / height_range, 8.0, 80.0)
+        )
 
     texture = _read_visual_rgb(rgb_path)
     Image.fromarray(texture, mode="RGB").save(texture_path)
@@ -173,6 +188,10 @@ def export_obj_mesh(
                 "rgb": str(rgb_path),
                 "elevation": str(elevation_path),
                 "crs": elevation_crs.to_string() if elevation_crs else None,
+                "metric_scale": metric_scale,
+                "height_mode": "metric" if metric_scale else "relative",
+                "height_range": height_range,
+                "recommended_vertical_exaggeration": recommended_vertical_exaggeration,
                 "stride": stride,
                 "vertical_exaggeration": vertical_exaggeration,
                 "base_elevation_m": base_elevation,

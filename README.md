@@ -11,6 +11,21 @@ It has two input modes:
 
 This is the working research prototype for SIH Problem Statement 26175.
 
+## Demo use case
+
+Use case shown in the demo:
+
+- Search for a place on the map.
+- Select a small area of interest.
+- Fetch a real Sentinel-2 RGB GeoTIFF for that area.
+- Run HeightNet to generate relative depth, AGL height, DSM, confidence, and a textured 3D terrain.
+- Compare captures from different dates when Sentinel-2 scenes are available.
+- Inspect the output in the browser workspace, export GeoTIFF/OBJ files, open the layers in QGIS, and validate against LiDAR DSM or GCP CSV data when reference data is available.
+
+Reference demonstration video:
+
+- YouTube: `PASTE_FINAL_YOUTUBE_LINK_HERE`
+
 ## Start here
 
 Read these files in this order:
@@ -31,7 +46,8 @@ python -m pip install -e ".[model,remote,test]"
 
 ## Run with Docker
 
-Docker runs the portal, globe, workspace, API, and 3D viewer together. Large
+Docker runs the main workspace, API, and 3D viewer together. The old globe URL
+is only a compatibility redirect. Large
 datasets and checkpoints stay in the local `data/` folder instead of being
 copied into the image:
 
@@ -44,9 +60,9 @@ checkpoints, Sentinel-2 downloads, and container commands.
 
 ## Start the map portal
 
-The repository now includes a local portal that provides a world map, place
-search, area selection, Sentinel-2 scene search, image upload, and a button for
-starting the existing pipeline.
+The main HeightNet workspace provides one consistent flow for world-map
+search, area selection, Sentinel-2 scene search, image upload, model execution,
+2D inspection, and 3D terrain viewing.
 
 Run it from the repository root:
 
@@ -210,22 +226,27 @@ search place → select two map corners → find Sentinel-2 scenes
 → download RGB GeoTIFF → run HeightNet → open the generated terrain
 ```
 
+After an area is selected, the workspace checks the source situation for that
+AOI. A low-resolution DEM can be used as the ground baseline. A LiDAR DSM or
+surveyed GCP file is kept separate and is only used when you deliberately run
+validation. The same decision is saved in the run's source manifest so the
+result does not lose where each layer came from.
+
 When a mesh is generated, the result panel includes a link that opens the OBJ,
 MTL, texture, and mesh metadata together in the Three.js viewer. The API only
 serves files created inside the local job folder.
 
 The previous simple portal is still available at
-<http://127.0.0.1:8000/classic/> as a fallback. The Cesium world-map screen is available at
-<http://127.0.0.1:8000/globe/>. It uses the same API, so it can search places,
-select an area, fetch Sentinel-2 RGB imagery, start the model job, and open the
-same terrain viewer.
+<http://127.0.0.1:8000/classic/> as a fallback. The old
+<http://127.0.0.1:8000/globe/> URL redirects into the workspace's **Map
+Acquisition** view, so there is no separate globe application to learn.
 
 ## React workspace source
 
 The UI branch is now kept under `portal/workspace-src/`. It is a React/Vite
-workspace with the layer panel, 2D/3D controls, live pipeline panel, and a
-link to the real generated terrain viewer. Its old procedural mountain is only
-a fallback preview; it is not presented as model output.
+workspace with one shell for Map Acquisition, 2D raster inspection, 3D terrain,
+layers, upload, and the live pipeline. Empty states are shown until real files
+exist, so demo placeholders are not confused with model output.
 
 The UI branch is kept under `portal/workspace-src/`. Build it once:
 
@@ -238,9 +259,9 @@ python scripts/serve_portal.py
 ```
 
 The root URL and `/workspace/` both serve the React workspace. Upload a
-PNG/JPG/GeoTIFF, run the model, and use `Open actual 3D terrain` after the job
-finishes. The workspace, classic portal, globe, and viewer all use the same
-backend routes and job store.
+PNG/JPG/GeoTIFF, run the model, and use `Open generated 3D terrain` after the
+job finishes. The workspace and fallback portal use the same backend routes and
+job store.
 
 ## Compare against reference data
 

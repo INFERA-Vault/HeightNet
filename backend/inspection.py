@@ -116,3 +116,67 @@ def inspect_raster(
             "map_y": float(map_y),
             "crs": dataset.crs.to_string() if dataset.crs else None,
         }
+
+
+def profile_raster(
+    path: str | Path,
+    start: tuple[float, float],
+    end: tuple[float, float],
+    *,
+    samples: int = 64,
+) -> dict[str, Any]:
+    """Sample a raster along a pixel-space line for a compact elevation profile."""
+
+    try:
+        import rasterio
+    except ImportError as exc:  # pragma: no cover
+        raise RasterInspectionError("Raster inspection requires Rasterio.") from exc
+
+    count = max(2, min(512, int(samples)))
+    with _open_raster(path) as dataset:
+        start_col, start_row = float(start[0]), float(start[1])
+        end_col, end_row = float(end[0]), float(end[1])
+        columns = np.linspace(start_col, end_col, count)
+        rows = np.linspace(start_row, end_row, count)
+        coordinates = [(float(col), float(row)) for col, row in zip(columns, rows)]
+        values: list[float | None] = []
+        for value in dataset.sample(
+            [(dataset.transform * (col + 0.5, row + 0.5)) for col, row in coordinates],
+            indexes=1,
+        ):
+            numeric = float(value[0])
+            if not np.isfinite(numeric) or (
+                dataset.nodata is not None and np.isclose(numeric, dataset.nodata)
+            ):
+                values.append(None)
+            else:
+                values.append(numeric)
+
+        pixel_width = abs(float(dataset.transform.a)) or 1.0
+        pixel_height = abs(float(dataset.transform.e)) or 1.0
+        total_distance = float(
+            np.hypot((end_col - start_col) * pixel_width, (end_row - start_row) * pixel_height)
+        )
+        profile: list[dict[str, Any]] = []
+        for index, ((col, row), value) in enumerate(zip(coordinates, values)):
+            map_x, map_y = dataset.transform * (col + 0.5, row + 0.5)
+            profile.append(
+                {
+                    "distance_m": total_distance * index / max(count - 1, 1),
+                    "column": col,
+                    "row": row,
+                    "value_m": value,
+                    "map_x": float(map_x),
+                    "map_y": float(map_y),
+                }
+            )
+
+        valid = [point["value_m"] for point in profile if point["value_m"] is not None]
+        return {
+            "path": str(path),
+            "crs": dataset.crs.to_string() if dataset.crs else None,
+            "distance_m": total_distance,
+            "samples": profile,
+            "min_m": float(min(valid)) if valid else None,
+            "max_m": float(max(valid)) if valid else None,
+        }

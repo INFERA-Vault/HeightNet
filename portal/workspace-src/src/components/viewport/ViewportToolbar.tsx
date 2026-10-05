@@ -15,11 +15,16 @@ import {
 import { useViewportStore } from '../../state/viewportStore';
 import { useAppStore } from '../../state/appStore';
 
-export const ViewportToolbar: React.FC = () => {
-  const activeView = useAppStore((state) => state.activeView);
+interface ViewportToolbarProps {
+  activeViewOverride?: import('../../types/viewport').ActiveView;
+  compact?: boolean;
+}
+
+export const ViewportToolbar: React.FC<ViewportToolbarProps> = ({ activeViewOverride, compact = false }) => {
+  const globalActiveView = useAppStore((state) => state.activeView);
+  const activeView = activeViewOverride ?? globalActiveView;
   const notify = useAppStore((state) => state.notify);
   const openDedicated3DViewer = useAppStore((state) => state.openDedicated3DViewer);
-
   const {
     viewport2D,
     setZoom2D,
@@ -35,6 +40,17 @@ export const ViewportToolbar: React.FC = () => {
     toggleWireframe3D,
     resetCamera3D,
   } = useViewportStore();
+
+  if (activeView === 'MAP') {
+    return (
+      <div className={`viewport-toolbar ${compact ? 'viewport-toolbar-compact' : ''}`} role="toolbar" aria-label="Map acquisition toolbar">
+        <div className="toolbar-group">
+          <span className="viewport-mode-label">Map</span>
+          <span className="viewport-toolbar-note">Search for a place and download Sentinel-2 imagery</span>
+        </div>
+      </div>
+    );
+  }
 
   const handleZoomIn = () => {
     if (activeView === '2D') {
@@ -84,7 +100,7 @@ export const ViewportToolbar: React.FC = () => {
   };
 
   return (
-    <div className="viewport-toolbar" role="toolbar" aria-label="Viewport Toolbar">
+    <div className={`viewport-toolbar ${compact ? 'viewport-toolbar-compact' : ''}`} role="toolbar" aria-label="Viewport Toolbar">
       <div className="toolbar-group">
         <button
           className="toolbar-btn"

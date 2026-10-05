@@ -67,17 +67,18 @@ class JobStore:
 
     def start(self, job: Job, worker: Callable[[], dict[str, Any]]) -> None:
         def run() -> None:
-            self.update(job.id, status="running", message="Working")
+            self.update(job.id, status="running", message="Starting the job...")
             try:
                 result = worker()
             except Exception as exc:  # worker errors belong in the job response
                 self.update(job.id, status="failed", message=str(exc))
             else:
-                self.update(
-                    job.id,
-                    status="complete",
-                    message="Finished",
-                    result=result,
-                )
+                # A worker may have left a useful final message such as
+                # "Terrain mesh and exports are ready." Do not replace that
+                # with the vague old "Finished" text.
+                with self._lock:
+                    current_message = self._jobs[job.id].message
+                final_message = current_message if current_message != "Starting the job..." else "Finished"
+                self.update(job.id, status="complete", message=final_message, result=result)
 
         threading.Thread(target=run, name=f"heightnet-job-{job.id}", daemon=True).start()

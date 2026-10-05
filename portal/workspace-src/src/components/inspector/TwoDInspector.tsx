@@ -4,11 +4,14 @@ import {
   ChevronRight,
   Maximize2,
   RotateCcw,
+  ExternalLink,
 } from 'lucide-react';
 import { useViewportStore } from '../../state/viewportStore';
 import { useProjectStore } from '../../state/projectStore';
 import { useLayerStore } from '../../state/layerStore';
 import type { ColormapPreset } from '../../types/viewport';
+import { useAppStore } from '../../state/appStore';
+import { API_BASE, openInQgis } from '../../integration/api';
 
 export const TwoDInspector: React.FC = () => {
   const {
@@ -23,15 +26,57 @@ export const TwoDInspector: React.FC = () => {
   } = useViewportStore();
 
   const project = useProjectStore((state) => state.project);
+  const setActiveView = useAppStore((state) => state.setActiveView);
+  const notify = useAppStore((state) => state.notify);
   const { layers, selectedLayerId, setLayerOpacity, setLayerBlendMode } = useLayerStore();
 
   const selectedLayer = layers.find((l) => l.id === selectedLayerId);
+  const hasData = Boolean(project.sourceRasterUrl || project.outputs.dsm);
 
   // Section rollout open states
   const [openView, setOpenView] = useState(true);
   const [openTone, setOpenTone] = useState(true);
   const [openLayer, setOpenLayer] = useState(true);
   const [openInfo, setOpenInfo] = useState(true);
+  const [openingQgis, setOpeningQgis] = useState(false);
+  const [qgisProjectUrl, setQgisProjectUrl] = useState<string | null>(null);
+
+  const openCurrentResultInQgis = async () => {
+    const raw = project.rawOutputPaths;
+    const candidates = [
+      { path: raw.input, label: 'RGB input', visible: true, opacity: 1 },
+      { path: raw.dsm, label: 'Estimated DSM', visible: true, opacity: 0.55 },
+      { path: raw.agl, label: 'Predicted AGL', visible: false, opacity: 0.75 },
+      { path: raw.relative, label: 'Relative depth', visible: false, opacity: 0.75 },
+      { path: raw.confidence, label: 'Calibration confidence', visible: false, opacity: 0.7 },
+      { path: raw.uncertainty, label: 'Calibration uncertainty', visible: false, opacity: 0.7 },
+      { path: raw.sceneRisk, label: 'Scene risk flags', visible: false, opacity: 0.65 },
+    ].filter((layer): layer is { path: string; label: string; visible: boolean; opacity: number } => Boolean(layer.path));
+    if (!candidates.length) return;
+    setOpeningQgis(true);
+    try {
+      const opened = await openInQgis(candidates);
+      setQgisProjectUrl(opened.project_url);
+      notify(opened.qgis_launched ? 'QGIS opened with the result layers' : 'QGIS project created. Open it from the download link.', opened.qgis_launched ? 'success' : 'info');
+    } catch (error) {
+      notify(error instanceof Error ? error.message : 'Could not create the QGIS project', 'warning');
+    } finally {
+      setOpeningQgis(false);
+    }
+  };
+
+  if (!hasData) {
+    return (
+      <div className="inspector-empty-state">
+        <strong>No raster loaded</strong>
+        <span>Upload an image or fetch Sentinel-2 data from Map Acquisition.</span>
+        <button onClick={() => setActiveView('MAP')}>Open map</button>
+        <button onClick={() => {
+          window.setTimeout(() => window.dispatchEvent(new CustomEvent('heightnet:open-upload')), 0);
+        }}>Upload image</button>
+      </div>
+    );
+  }
 
   const colormaps: { label: string; value: ColormapPreset }[] = [
     { label: 'Natural Multispectral', value: 'natural' },
@@ -42,6 +87,18 @@ export const TwoDInspector: React.FC = () => {
 
   return (
     <div className="inspector-content">
+      <div className="rollout-section">
+        <div className="rollout-header">
+          <div className="rollout-title"><ExternalLink size={12} /><span>Desktop analysis</span></div>
+        </div>
+        <div className="rollout-body">
+          <button className="map-qgis-button" onClick={() => void openCurrentResultInQgis()} disabled={openingQgis}>
+            <ExternalLink size={11} /> {openingQgis ? 'Preparing QGIS project...' : 'Open all layers in QGIS'}
+          </button>
+          {qgisProjectUrl ? <a className="map-qgis-download" href={`${API_BASE}${qgisProjectUrl}`} download>Download QGIS project file</a> : null}
+        </div>
+      </div>
+
       {/* 1. VIEW NAVIGATION ROLLOUT */}
       <div className="rollout-section">
         <div className="rollout-header" onClick={() => setOpenView(!openView)}>

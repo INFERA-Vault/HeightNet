@@ -245,13 +245,7 @@ export const Dedicated3DViewer: React.FC = () => {
 
       {/* Main Screen Three.js Canvas Container */}
       <main className="viewer-stage" role="main" aria-label="3D Terrain Scene">
-        {project.liveViewerUrl ? (
-          <iframe
-            title="Generated HeightNet terrain"
-            src={project.liveViewerUrl}
-            style={{ width: '100%', height: '100%', border: 0, background: '#101418' }}
-          />
-        ) : <TerrainScene />}
+        <TerrainScene />
         <ViewportOverlay />
       </main>
 

@@ -1,4 +1,4 @@
-export type ActiveView = '2D' | '3D';
+export type ActiveView = 'MAP' | '2D' | '3D';
 
 export type CameraMode = 'orbit' | 'auto-orbit' | 'flythrough' | 'walkthrough';
 
@@ -69,7 +69,7 @@ export interface CursorReadout {
   slopeDegrees?: number;
   mapX?: number;
   mapY?: number;
-  readoutSource?: 'preview' | 'live-raster';
+  readoutSource?: 'metadata' | 'live-raster';
 }
 
 export interface Camera3DReadout {

@@ -13,23 +13,23 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 28px;
-  min-height: 28px;
-  padding: 0 10px;
+  height: 42px;
+  min-height: 42px;
+  padding: 0 14px;
   background-color: var(--bg-panel-header);
   border-bottom: 1px solid var(--border-subtle);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--text-primary);
 }
 
 .inspector-header-badge {
-  font-family: var(--font-mono);
-  font-size: 8.5px;
+  font-family: var(--font-sans);
+  font-size: 10px;
   background-color: var(--bg-subtle);
   border: 1px solid var(--border-subtle);
-  padding: 1px 4px;
+  padding: 3px 7px;
   border-radius: var(--radius-xs);
   color: var(--accent-light);
   font-weight: 500;
@@ -53,9 +53,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 24px;
-  min-height: 24px;
-  padding: 0 8px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0 12px;
   background-color: var(--bg-subtle);
   cursor: pointer;
   border-top: 1px solid rgba(255, 255, 255, 0.03);
@@ -70,7 +70,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -82,7 +82,7 @@
 }
 
 .rollout-body {
-  padding: 6px 10px 8px 10px;
+  padding: 10px 12px 12px;
   display: flex;
   flex-direction: column;
   gap: 5px;
@@ -94,14 +94,14 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 22px;
+  height: 30px;
   gap: 8px;
 }
 
 .prop-label {
-  width: 90px;
+  width: 104px;
   flex-shrink: 0;
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
@@ -184,12 +184,12 @@
 }
 
 .desktop-action-btn {
-  height: 22px;
-  padding: 0 6px;
+  height: 30px;
+  padding: 0 8px;
   background-color: var(--bg-subtle);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--text-secondary);
 }
@@ -214,6 +214,42 @@
 .desktop-action-btn.warning:hover {
   background-color: rgba(245, 158, 11, 0.22);
 }
+
+.validation-panel { flex-shrink: 0; }
+.validation-body { gap: 8px; }
+.validation-copy,
+.validation-note,
+.validation-status,
+.validation-file,
+.validation-samples {
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+.validation-report-link { color: var(--accent-light); font-size: 10px; }
+.validation-report-link:hover { text-decoration: underline; }
+.validation-copy { color: var(--text-secondary); }
+.validation-kind-switch { min-height: 27px; }
+.validation-kind-switch .desktop-segmented-btn { height: 24px; font-size: 9px; }
+.validation-upload,
+.validation-run { width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.validation-file {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 5px 7px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-input);
+  color: var(--text-secondary);
+}
+.validation-status { padding: 5px 7px; background: rgba(9, 12, 14, 0.45); }
+.validation-status.error { color: var(--status-warning); }
+.validation-ok { color: var(--status-success, #6ee7b7); }
+.validation-results { display: grid; gap: 7px; padding-top: 8px; border-top: 1px solid var(--border-subtle); }
+.validation-results strong { color: var(--text-primary); font-size: 10px; }
+.validation-metrics { display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px; }
+.validation-metrics span { display: grid; gap: 2px; padding: 5px 6px; background: var(--bg-subtle); border: 1px solid var(--border-subtle); color: var(--text-primary); font: 10px var(--font-mono); }
+.validation-metrics small { color: var(--text-muted); font: 9px var(--font-ui); }
 
 .desktop-action-btn.active {
   background-color: var(--accent-muted);

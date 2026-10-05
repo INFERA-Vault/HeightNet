@@ -2,28 +2,21 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useViewportStore } from '../../state/viewportStore';
 import { useLayerStore } from '../../state/layerStore';
 import { useProjectStore } from '../../state/projectStore';
-import { inspectRaster } from '../../integration/api';
-import {
-  generateSatelliteCanvas,
-  generateDepthMapCanvas,
-  generateHypsometricCanvas,
-  getElevationMeters,
-  getGeoCoordinates,
-} from '../noise/terrainNoise';
+import { useWorkspaceStore } from '../../state/workspaceStore';
+import { useUtilitiesStore } from '../../state/utilitiesStore';
+import { inspectRaster, rasterPreviewUrl } from '../../integration/api';
 
 interface RasterRendererProps {
   width?: number;
   height?: number;
+  paneId?: string;
 }
 
-export const RasterRenderer: React.FC<RasterRendererProps> = () => {
+export const RasterRenderer: React.FC<RasterRendererProps> = ({ paneId }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const offscreenSatelliteRef = useRef<HTMLCanvasElement | null>(null);
-  const offscreenDepthRef = useRef<HTMLCanvasElement | null>(null);
-  const offscreenHypsometricRef = useRef<HTMLCanvasElement | null>(null);
-  const liveRasterRef = useRef<HTMLImageElement | null>(null);
-  const [liveRasterReady, setLiveRasterReady] = useState(false);
+  const rasterRefs = useRef<Record<string, HTMLImageElement | null>>({});
+  const [, setRasterVersion] = useState(0);
 
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef<{ x: number; y: number; panX: number; panY: number }>({
@@ -43,53 +36,56 @@ export const RasterRenderer: React.FC<RasterRendererProps> = () => {
   } = useViewportStore();
 
   const layers = useLayerStore((state) => state.layers);
+  const activePaneId = useWorkspaceStore((state) => state.activePaneId);
+  const analysisMode = useUtilitiesStore((state) => state.analysisMode);
+  const addProfilePoint = useUtilitiesStore((state) => state.addProfilePoint);
+  const setProbe = useUtilitiesStore((state) => state.setProbe);
   const liveRasterUrl = useProjectStore((state) => state.project.sourceRasterUrl);
   const project = useProjectStore((state) => state.project);
   const originalLayer = layers.find((l) => l.id === 'layer-raster-original');
-  const depthLayer = layers.find((l) => l.id === 'layer-depth-map');
+  const dsmLayer = layers.find((l) => l.id === 'layer-depth-map');
+  const aglLayer = layers.find((l) => l.id === 'layer-agl-map');
+  const confidenceLayer = layers.find((l) => l.id === 'layer-confidence-map');
+  const uncertaintyLayer = layers.find((l) => l.id === 'layer-uncertainty-map');
+  const sceneRiskLayer = layers.find((l) => l.id === 'layer-scene-risk-map');
   const contoursLayer = layers.find((l) => l.id === 'layer-contours');
   const gridLayer = layers.find((l) => l.id === 'layer-grid-2d');
 
   useEffect(() => {
-    liveRasterRef.current = null;
-    setLiveRasterReady(false);
-    if (!liveRasterUrl) return;
-    const image = new Image();
-    image.onload = () => {
-      liveRasterRef.current = image;
-      setLiveRasterReady(true);
+    const sources: Array<[string, string | null]> = [
+      ['original', liveRasterUrl || null],
+      ['dsm', project.depthMapUrl || rasterPreviewUrl(project.rawOutputPaths.dsm, 'elevation')],
+      ['agl', rasterPreviewUrl(project.rawOutputPaths.agl, 'elevation')],
+      ['confidence', rasterPreviewUrl(project.rawOutputPaths.confidence, 'confidence')],
+      ['uncertainty', rasterPreviewUrl(project.rawOutputPaths.uncertainty, 'risk')],
+      ['scene-risk', rasterPreviewUrl(project.rawOutputPaths.sceneRisk, 'risk')],
+    ];
+    let cancelled = false;
+    rasterRefs.current = {};
+    const pending = sources.filter(([, url]) => url);
+    if (!pending.length) {
+      setRasterVersion((value) => value + 1);
+      return () => { cancelled = true; };
+    }
+    let remaining = pending.length;
+    const markDone = () => {
+      remaining -= 1;
+      if (!cancelled && remaining === 0) setRasterVersion((value) => value + 1);
     };
-    image.onerror = () => setLiveRasterReady(false);
-    image.src = liveRasterUrl;
+    pending.forEach(([key, url]) => {
+      const image = new Image();
+      image.onload = () => {
+        if (cancelled) return;
+        rasterRefs.current[key] = image;
+        markDone();
+      };
+      image.onerror = markDone;
+      image.src = url as string;
+    });
     return () => {
-      image.onload = null;
-      image.onerror = null;
+      cancelled = true;
     };
-  }, [liveRasterUrl]);
-
-  // Pre-generate the procedural raster layers once
-  useEffect(() => {
-    if (!offscreenSatelliteRef.current) {
-      offscreenSatelliteRef.current = generateSatelliteCanvas(1024, 1024);
-    }
-    if (!offscreenDepthRef.current) {
-      offscreenDepthRef.current = generateDepthMapCanvas(1024, 1024);
-    }
-    if (!offscreenHypsometricRef.current) {
-      offscreenHypsometricRef.current = generateHypsometricCanvas(1024, 1024, 'viridis');
-    }
-  }, []);
-
-  // Update colormap if preset changes
-  useEffect(() => {
-    if (viewport2D.colormap !== 'natural') {
-      offscreenHypsometricRef.current = generateHypsometricCanvas(
-        1024,
-        1024,
-        viewport2D.colormap
-      );
-    }
-  }, [viewport2D.colormap]);
+  }, [liveRasterUrl, project.depthMapUrl, project.rawOutputPaths.dsm, project.rawOutputPaths.agl, project.rawOutputPaths.confidence, project.rawOutputPaths.uncertainty, project.rawOutputPaths.sceneRisk]);
 
   // Main 2D Render pass onto the visible canvas
   const renderCanvas = useCallback(() => {
@@ -109,38 +105,29 @@ export const RasterRenderer: React.FC<RasterRendererProps> = () => {
     ctx.scale(viewport2D.zoom, viewport2D.zoom);
     ctx.translate(-w / 2, -h / 2);
 
-    // Apply brightness, contrast & opacity filters
-    ctx.filter = `brightness(${viewport2D.brightness * 100}%) contrast(${
-      viewport2D.contrast * 100
-    }%)`;
-    ctx.globalAlpha = viewport2D.opacity;
-
-    // Draw active raster layer
-    const isShowingColormap = viewport2D.colormap !== 'natural';
-    const isShowingDepth = depthLayer?.visible;
-
-    if (isShowingColormap && offscreenHypsometricRef.current) {
-      ctx.drawImage(offscreenHypsometricRef.current, 0, 0, w, h);
-    } else if (isShowingDepth && offscreenDepthRef.current) {
-      ctx.drawImage(offscreenDepthRef.current, 0, 0, w, h);
-    } else if (originalLayer?.visible ?? true) {
-      if (liveRasterReady && liveRasterRef.current) {
-        ctx.drawImage(liveRasterRef.current, 0, 0, w, h);
-      } else if (offscreenSatelliteRef.current) {
-        ctx.drawImage(offscreenSatelliteRef.current, 0, 0, w, h);
+    const drawRaster = (key: string, visible: boolean, opacity: number, filtered = false) => {
+      const image = rasterRefs.current[key];
+      if (!image || !visible || opacity <= 0) return;
+      ctx.save();
+      ctx.globalAlpha = opacity;
+      if (filtered) {
+        ctx.filter = `brightness(${viewport2D.brightness * 100}%) contrast(${viewport2D.contrast * 100}%)`;
+      } else {
+        ctx.filter = 'none';
       }
-    }
+      ctx.drawImage(image, 0, 0, w, h);
+      ctx.restore();
+    };
 
-    // Blend depth layer over satellite if both are enabled
-    if (
-      isShowingDepth &&
-      originalLayer?.visible &&
-      !isShowingColormap &&
-      offscreenDepthRef.current
-    ) {
-      ctx.globalAlpha = depthLayer.opacity;
-      ctx.drawImage(offscreenDepthRef.current, 0, 0, w, h);
-    }
+    // Every generated output is a real switchable layer. The RGB image stays
+    // underneath; toggling DSM, AGL, confidence, uncertainty, or risk adds a
+    // colourised preview on top of it.
+    drawRaster('original', originalLayer?.visible ?? true, viewport2D.opacity * (originalLayer?.opacity ?? 1), true);
+    drawRaster('dsm', dsmLayer?.visible ?? false, dsmLayer?.opacity ?? 1);
+    drawRaster('agl', aglLayer?.visible ?? false, aglLayer?.opacity ?? 1);
+    drawRaster('confidence', confidenceLayer?.visible ?? false, confidenceLayer?.opacity ?? 1);
+    drawRaster('uncertainty', uncertaintyLayer?.visible ?? false, uncertaintyLayer?.opacity ?? 1);
+    drawRaster('scene-risk', sceneRiskLayer?.visible ?? false, sceneRiskLayer?.opacity ?? 1);
 
     // Contour lines overlay
     if (contoursLayer?.visible) {
@@ -209,14 +196,22 @@ export const RasterRenderer: React.FC<RasterRendererProps> = () => {
   }, [
     viewport2D,
     originalLayer?.visible,
-    depthLayer?.visible,
-    depthLayer?.opacity,
+    originalLayer?.opacity,
     contoursLayer?.visible,
     contoursLayer?.opacity,
     gridLayer?.visible,
     gridLayer?.opacity,
-    liveRasterReady,
-    liveRasterUrl,
+    gridLayer,
+    dsmLayer?.visible,
+    dsmLayer?.opacity,
+    aglLayer?.visible,
+    aglLayer?.opacity,
+    confidenceLayer?.visible,
+    confidenceLayer?.opacity,
+    uncertaintyLayer?.visible,
+    uncertaintyLayer?.opacity,
+    sceneRiskLayer?.visible,
+    sceneRiskLayer?.opacity,
   ]);
 
   // Keep canvas rendered
@@ -290,6 +285,11 @@ export const RasterRenderer: React.FC<RasterRendererProps> = () => {
   // Keyboard WSAD & Arrow Keys for 2D Panning (+ / - for Zoom)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Keyboard navigation belongs to the pane the user is working in.
+      // Without this guard, Flythrough's W/A/S/D keys also pan the shared
+      // 2D viewport in a split workspace and make the raster appear to jump
+      // away or disappear.
+      if (paneId && activePaneId !== paneId) return;
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
         return;
       }
@@ -329,7 +329,7 @@ export const RasterRenderer: React.FC<RasterRendererProps> = () => {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [setPan2D, setZoom2D]);
+  }, [activePaneId, paneId, setPan2D, setZoom2D]);
 
   // Mouse down: drag pan or measure point
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -340,6 +340,21 @@ export const RasterRenderer: React.FC<RasterRendererProps> = () => {
       const x = (e.clientX - rect.left) / viewport2D.zoom;
       const y = (e.clientY - rect.top) / viewport2D.zoom;
       addMeasurePoint2D({ x, y });
+      return;
+    }
+
+    if (analysisMode === 'profile') {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const viewX = e.clientX - rect.left;
+      const viewY = e.clientY - rect.top;
+      const imageX = (viewX - canvas.width / 2 - viewport2D.panX) / viewport2D.zoom + canvas.width / 2;
+      const imageY = (viewY - canvas.height / 2 - viewport2D.panY) / viewport2D.zoom + canvas.height / 2;
+      addProfilePoint({
+        x: Math.round(Math.max(0, Math.min(1, imageX / canvas.width)) * Math.max(0, project.metadata.dimensions.width - 1)),
+        y: Math.round(Math.max(0, Math.min(1, imageY / canvas.height)) * Math.max(0, project.metadata.dimensions.height - 1)),
+      });
       return;
     }
 
@@ -359,18 +374,16 @@ export const RasterRenderer: React.FC<RasterRendererProps> = () => {
       const u = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
       const v = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
 
-      const elev = getElevationMeters(u, v);
-      const { lat, lon } = getGeoCoordinates(u, v);
-      const pixelX = Math.round(u * 4096);
-      const pixelY = Math.round(v * 4096);
+      const pixelX = Math.round(u * Math.max(0, project.metadata.dimensions.width - 1));
+      const pixelY = Math.round(v * Math.max(0, project.metadata.dimensions.height - 1));
+      const { west, east, south, north } = project.metadata.bounds;
 
       setCursorReadout({
         pixelX,
         pixelY,
-        lat,
-        lon,
-        elevation: elev,
-        slopeDegrees: Math.round(15 + (elev / 4810) * 35),
+        lat: north - v * (north - south),
+        lon: west + u * (east - west),
+        readoutSource: 'metadata',
       });
     }
 
@@ -385,9 +398,8 @@ export const RasterRenderer: React.FC<RasterRendererProps> = () => {
   };
 
   const handleCanvasClick = async (e: React.MouseEvent) => {
-    const dsmPath = project.rawOutputPaths.dsm;
     const canvas = canvasRef.current;
-    if (!dsmPath || !canvas || viewport2D.measureMode) return;
+    if (!canvas || viewport2D.measureMode || analysisMode === 'profile') return;
     const rect = canvas.getBoundingClientRect();
     const viewX = e.clientX - rect.left;
     const viewY = e.clientY - rect.top;
@@ -397,19 +409,45 @@ export const RasterRenderer: React.FC<RasterRendererProps> = () => {
     const v = Math.max(0, Math.min(1, imageY / canvas.height));
     const col = Math.round(u * Math.max(0, project.metadata.dimensions.width - 1));
     const row = Math.round(v * Math.max(0, project.metadata.dimensions.height - 1));
-    try {
-      const point = await inspectRaster(dsmPath, col, row);
+    const paths = project.rawOutputPaths;
+    const read = async (path: string | null) => {
+      if (!path) return null;
+      try {
+        return await inspectRaster(path, col, row);
+      } catch {
+        return null;
+      }
+    };
+    const [dsm, agl, confidence, uncertainty, sceneRisk] = await Promise.all([
+      read(paths.dsm),
+      read(paths.agl),
+      read(paths.confidence),
+      read(paths.uncertainty),
+      read(paths.sceneRisk),
+    ]);
+    if (dsm || agl || confidence || uncertainty || sceneRisk) {
       setCursorReadout({
-        pixelX: point.column,
-        pixelY: point.row,
-        elevation: point.value_m,
-        slopeDegrees: point.slope_degrees ?? undefined,
-        mapX: point.map_x,
-        mapY: point.map_y,
+        pixelX: dsm?.column ?? col,
+        pixelY: dsm?.row ?? row,
+        elevation: dsm?.value_m ?? agl?.value_m ?? undefined,
+        slopeDegrees: dsm?.slope_degrees ?? undefined,
+        mapX: dsm?.map_x ?? agl?.map_x,
+        mapY: dsm?.map_y ?? agl?.map_y,
         readoutSource: 'live-raster',
       });
-    } catch {
-      // A click outside the valid raster is not an application error.
+      setProbe({
+        row,
+        column: col,
+        elevation: dsm?.value_m ?? null,
+        slopeDegrees: dsm?.slope_degrees ?? null,
+        agl: agl?.value_m ?? null,
+        confidence: confidence?.value_m ?? null,
+        uncertainty: uncertainty?.value_m ?? null,
+        sceneRisk: sceneRisk?.value_m ?? null,
+        mapX: dsm?.map_x ?? agl?.map_x ?? null,
+        mapY: dsm?.map_y ?? agl?.map_y ?? null,
+        crs: dsm?.crs ?? agl?.crs ?? null,
+      });
     }
   };
 
@@ -432,7 +470,7 @@ export const RasterRenderer: React.FC<RasterRendererProps> = () => {
     <div
       ref={containerRef}
       className={`raster-stage ${isDragging ? 'dragging' : ''} ${
-        viewport2D.measureMode ? 'measuring' : ''
+    viewport2D.measureMode ? 'measuring' : analysisMode === 'profile' ? 'profiling' : ''
       }`}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
