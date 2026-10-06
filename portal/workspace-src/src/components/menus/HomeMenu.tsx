@@ -1,12 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+  Download,
   FilePlus,
   FolderOpen,
   History,
-  Upload,
-  Download,
   Info,
-  Compass,
+  Upload,
 } from 'lucide-react';
 import { useAppStore } from '../../state/appStore';
 
@@ -41,23 +40,6 @@ export const HomeMenu: React.FC = () => {
 
       {open && (
         <div className="dw-dropdown-menu" role="menu">
-          <button
-            className="dw-menu-item"
-            role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              window.location.assign('/landing/');
-            }}
-          >
-            <div className="dw-menu-item-left">
-              <Compass size={13} />
-              <span>Product overview</span>
-            </div>
-            <span className="dw-menu-shortcut">↗</span>
-          </button>
-
-          <div className="dw-menu-separator" />
-
           <button
             className="dw-menu-item"
             role="menuitem"

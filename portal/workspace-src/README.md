@@ -41,9 +41,9 @@ Use **Map Acquisition** to search for a place, select a small area, download a
 Sentinel-2 RGB GeoTIFF, and run the pipeline. You can also choose **Upload**
 to run the pipeline directly on a PNG, JPG, or GeoTIFF.
 
-The old `/globe/` URL is kept only as a compatibility redirect into Map
-Acquisition. The old `/classic/` portal remains available as a fallback, but
-it is not a second main product.
+The old `/classic/`, `/landing/`, and `/globe/` URLs redirect back into this
+workspace. This keeps old links from breaking without keeping multiple UI
+versions alive.
 
 ## Important boundary
 

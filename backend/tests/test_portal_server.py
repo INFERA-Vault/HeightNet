@@ -74,7 +74,12 @@ def test_portal_serves_health_and_viewer() -> None:
         with urlopen(f"{base_url}/classic/", timeout=5) as response:
             classic_html = response.read().decode("utf-8")
         assert response.status == 200
-        assert "Find a place" in classic_html
+        assert "/workspace/assets/" in classic_html
+
+        with urlopen(f"{base_url}/landing/", timeout=5) as response:
+            landing_html = response.read().decode("utf-8")
+        assert response.status == 200
+        assert "/workspace/assets/" in landing_html
 
         with urlopen(f"{base_url}/viewer/3d", timeout=5) as response:
             dedicated_html = response.read().decode("utf-8")
@@ -89,6 +94,7 @@ def test_portal_serves_health_and_viewer() -> None:
         with urlopen(f"{base_url}/globe/", timeout=5) as response:
             globe_html = response.read().decode("utf-8")
         assert response.status == 200
+        assert response.geturl().endswith("/?view=map")
         assert "/workspace/assets/" in globe_html
         assert "HeightNet" in globe_html
     finally:

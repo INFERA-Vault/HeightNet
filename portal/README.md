@@ -1,6 +1,6 @@
 # HeightNet portal
 
-This is the first working local HeightNet portal.
+This folder contains the HeightNet browser workspace.
 
 The portal lets a user search for a place, select an area, download a Sentinel-2
 RGB image, and send it through the existing model and terrain pipeline.
@@ -22,11 +22,10 @@ The portal needs internet access for OpenStreetMap tiles, place search, and the
 Planetary Computer STAC search. A real model run also needs the local model
 checkpoint and the optional calibration files described in the main README.
 
-- Map behaviour is in `portal/map/`.
-- Screen styling and controls are in `portal/ui/`.
+- The React workspace source is in `portal/workspace-src/`.
 - Sentinel-2 lookup is in `backend/acquisition/`.
 - The local API is in `backend/api/`.
-- The existing standalone terrain viewer remains in `viewer/`.
+- The standalone terrain viewer remains in `viewer/`.
 
 The API has two acquisition paths: `/api/scenes` plus `/api/download` is the
 main two-step flow, while `/api/imagery` is a compatibility route for older
@@ -38,9 +37,8 @@ The React workspace source lives in `portal/workspace-src/`. Build it with
 until a real image or map job is loaded, then opens the real OBJ/MTL/texture
 output from the Python pipeline.
 
-The previous simple interface is still available at `/classic/`. The old
-`/globe/` URL redirects to Map Acquisition inside the main workspace. The
-standalone mesh viewer remains available at `/viewer/`.
+The old `/classic/`, `/landing/`, and `/globe/` URLs redirect back to the main
+workspace. There is no separate second UI to maintain.
 
 The model does not make accuracy claims without independent LiDAR, reference
 DSM, or GCP validation.

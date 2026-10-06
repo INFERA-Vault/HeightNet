@@ -46,10 +46,9 @@ python -m pip install -e ".[model,remote,test]"
 
 ## Run with Docker
 
-Docker runs the main workspace, API, and 3D viewer together. The old globe URL
-is only a compatibility redirect. Large
-datasets and checkpoints stay in the local `data/` folder instead of being
-copied into the image:
+Docker runs the main workspace, API, and 3D viewer together. Large datasets and
+checkpoints stay in the local `data/` folder instead of being copied into the
+image:
 
 ```powershell
 docker compose up --build
@@ -236,19 +235,18 @@ When a mesh is generated, the result panel includes a link that opens the OBJ,
 MTL, texture, and mesh metadata together in the Three.js viewer. The API only
 serves files created inside the local job folder.
 
-The previous simple portal is still available at
-<http://127.0.0.1:8000/classic/> as a fallback. The old
-<http://127.0.0.1:8000/globe/> URL redirects into the workspace's **Map
-Acquisition** view, so there is no separate globe application to learn.
+The root URL is the single main UI. Old `/classic/`, `/landing/`, and `/globe/`
+links redirect back into this workspace so nobody has to deal with multiple
+different interfaces.
 
 ## React workspace source
 
-The UI branch is now kept under `portal/workspace-src/`. It is a React/Vite
+The UI is kept under `portal/workspace-src/`. It is a React/Vite
 workspace with one shell for Map Acquisition, 2D raster inspection, 3D terrain,
 layers, upload, and the live pipeline. Empty states are shown until real files
 exist, so demo placeholders are not confused with model output.
 
-The UI branch is kept under `portal/workspace-src/`. Build it once:
+Build it once:
 
 ```powershell
 cd portal/workspace-src
@@ -259,9 +257,9 @@ python scripts/serve_portal.py
 ```
 
 The root URL and `/workspace/` both serve the React workspace. Upload a
-PNG/JPG/GeoTIFF, run the model, and use `Open generated 3D terrain` after the
-job finishes. The workspace and fallback portal use the same backend routes and
-job store.
+PNG/JPG/GeoTIFF, run the model, and use the 3D Terrain view after the job
+finishes. The workspace uses the same backend routes and job store for map
+downloads, uploads, terrain generation, exports, and validation.
 
 ## Compare against reference data
 

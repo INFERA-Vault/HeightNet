@@ -49,9 +49,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 PORTAL_ROOT = REPO_ROOT / "portal"
 JOBS_ROOT = REPO_ROOT / "data" / "portal_jobs"
 VIEWER_ROOT = REPO_ROOT / "viewer"
-GLOBE_ROOT = REPO_ROOT / "portal" / "globe"
 WORKSPACE_ROOT = REPO_ROOT / "portal" / "workspace-src" / "dist"
-LANDING_ROOT = REPO_ROOT / "portal" / "landing"
 MAX_UPLOAD_BYTES = 500 * 1024 * 1024
 JOB_STORE = JobStore()
 MIN_SENTINEL_VALID_FRACTION = 0.80
@@ -420,6 +418,12 @@ class PortalHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _redirect(self, location: str) -> None:
+        self.send_response(302)
+        self.send_header("Location", location)
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+
     def _read_json(self) -> dict[str, Any]:
         length = int(self.headers.get("Content-Length", "0"))
         if length > MAX_UPLOAD_BYTES:
@@ -448,24 +452,6 @@ class PortalHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _serve_globe_file(self, relative_path: str) -> None:
-        """Serve the optional Cesium globe without exposing the repository."""
-
-        requested = relative_path.strip("/") or "index.html"
-        candidate = (GLOBE_ROOT / requested).resolve()
-        try:
-            candidate.relative_to(GLOBE_ROOT.resolve())
-        except ValueError as exc:
-            raise FileNotFoundError("Globe path is outside the globe directory.") from exc
-        if not candidate.is_file():
-            raise FileNotFoundError(candidate)
-        body = candidate.read_bytes()
-        self.send_response(200)
-        self.send_header("Content-Type", mimetypes.guess_type(candidate.name)[0] or "application/octet-stream")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
     def _serve_workspace_file(self, relative_path: str) -> None:
         """Serve the built React workspace without exposing source files."""
 
@@ -483,69 +469,6 @@ class PortalHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
-
-    def _serve_landing_file(self, relative_path: str) -> None:
-        """Serve the public product overview without exposing the repository."""
-
-        requested = relative_path.strip("/") or "index.html"
-        candidate = (LANDING_ROOT / requested).resolve()
-        try:
-            candidate.relative_to(LANDING_ROOT.resolve())
-        except ValueError as exc:
-            raise FileNotFoundError("Landing path is outside the landing directory.") from exc
-        if not candidate.is_file():
-            raise FileNotFoundError(candidate)
-        body = candidate.read_bytes()
-        self.send_response(200)
-        self.send_header("Content-Type", mimetypes.guess_type(candidate.name)[0] or "application/octet-stream")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    @staticmethod
-    def _landing_summary() -> dict[str, Any]:
-        """Return metadata for the newest generated terrain, if one exists."""
-
-        textures = sorted(
-            JOBS_ROOT.glob("*/outputs/*_terrain_texture.png"),
-            key=lambda path: path.stat().st_mtime,
-            reverse=True,
-        )
-        if not textures:
-            return {"loaded": False}
-
-        texture = textures[0]
-        prefix = texture.stem.removesuffix("_terrain_texture")
-        output_dir = texture.parent
-        pipeline_path = output_dir / f"{prefix}_pipeline_metadata.json"
-        terrain_path = output_dir / f"{prefix}_terrain_metadata.json"
-        quality_path = output_dir / f"{prefix}_scene_quality.json"
-
-        pipeline: dict[str, Any] = {}
-        terrain: dict[str, Any] = {}
-        quality: dict[str, Any] = {}
-        for path, target in ((pipeline_path, pipeline), (terrain_path, terrain), (quality_path, quality)):
-            if path.is_file():
-                try:
-                    target.update(json.loads(path.read_text(encoding="utf-8")))
-                except (OSError, json.JSONDecodeError):
-                    continue
-
-        input_info = pipeline.get("input", {})
-        transform = input_info.get("transform", [])
-        resolution = transform[0] if transform and isinstance(transform[0], (int, float)) else None
-        relative_texture = _relative(texture)
-        return {
-            "loaded": True,
-            "scene": prefix,
-            "texture_url": f"/api/file?path={relative_texture}",
-            "crs": input_info.get("crs") or terrain.get("crs") or "CRS unavailable",
-            "width": input_info.get("width") or terrain.get("width") or 0,
-            "height": input_info.get("height") or terrain.get("height") or 0,
-            "resolution": resolution,
-            "metric_scale": bool(pipeline.get("metric_scale", False)),
-            "risk_score": float(quality.get("risk_score", 0.0)),
-        }
 
     def _serve_raster_preview(self, path: Path, palette: str) -> None:
         """Render one generated raster as a browser-friendly PNG preview."""
@@ -596,12 +519,16 @@ class PortalHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
-        if parsed.path == "/landing" or parsed.path.startswith("/landing/"):
-            try:
-                relative_path = parsed.path.removeprefix("/landing/")
-                self._serve_landing_file(relative_path)
-            except FileNotFoundError:
-                self.send_error(404, "Landing page file not found")
+        if parsed.path == "/globe" or parsed.path.startswith("/globe/"):
+            self._redirect("/?view=map")
+            return
+        if (
+            parsed.path == "/classic"
+            or parsed.path.startswith("/classic/")
+            or parsed.path == "/landing"
+            or parsed.path.startswith("/landing/")
+        ):
+            self._redirect("/")
             return
         # The React workspace is the main HeightNet product screen.  Keep the
         # old standalone viewer available at /viewer/, but let the React app
@@ -612,27 +539,12 @@ class PortalHandler(SimpleHTTPRequestHandler):
             except FileNotFoundError:
                 self.send_error(404, "Workspace build not found. Run npm install and npm run build in portal/workspace-src.")
             return
-        # The previous vanilla portal remains available as a fallback while
-        # the React workspace becomes the default entry point.
-        if parsed.path == "/classic" or parsed.path.startswith("/classic/"):
-            relative_path = parsed.path.removeprefix("/classic/").strip("/") or "index.html"
-            self.path = "/" + relative_path
-            super().do_GET()
-            return
         if parsed.path == "/viewer" or parsed.path.startswith("/viewer/"):
             try:
                 relative_path = parsed.path.removeprefix("/viewer/")
                 self._serve_viewer_file(relative_path)
             except FileNotFoundError:
                 self.send_error(404, "Viewer file not found")
-            return
-        if parsed.path == "/globe" or parsed.path.startswith("/globe/"):
-            # Map acquisition now lives inside the React workspace. Keep the old
-            # route as a friendly compatibility redirect instead of exposing a
-            # second, visually unrelated application.
-            self.send_response(302)
-            self.send_header("Location", "/?view=map")
-            self.end_headers()
             return
         if parsed.path.startswith("/workspace/"):
             try:
@@ -643,9 +555,6 @@ class PortalHandler(SimpleHTTPRequestHandler):
             return
         if parsed.path == "/api/health":
             self._send_json({"status": "ok", "service": "heightnet-portal"})
-            return
-        if parsed.path == "/api/landing-summary":
-            self._send_json(self._landing_summary())
             return
         if parsed.path == "/api/geocode":
             query = parse_qs(parsed.query).get("q", [""])[0]
@@ -868,11 +777,10 @@ class PortalHandler(SimpleHTTPRequestHandler):
         self._send_json({"path": _relative(path), "filename": filename, "reference": info})
 
     def _handle_imagery(self, payload: dict[str, Any]) -> None:
-        """Compatibility route for the standalone globe's imagery button.
+        """Compatibility route for older clients that ask for one image.
 
-        The globe asks for one image in a single request.  The main portal uses
-        the safer two-step scene-search/download flow, but both routes now end
-        up in the same real Sentinel-2 RGB downloader.
+        The main workspace uses the safer two-step scene-search/download flow,
+        but both routes end up in the same real Sentinel-2 RGB downloader.
         """
 
         bbox = validate_bbox(payload.get("bbox", []))
